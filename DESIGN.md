@@ -19,7 +19,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 ## Interface
 
 - **Menu-bar app** with no Dock icon (`LSUIElement`).
-- **Menu-bar icon** is a tuning fork. It changes while the mic is live.
+- **Menu-bar icon** is the `tuningfork` SF Symbol. It changes while the mic is live; the exact live-state look is decided in step 3.
 - **Menu items:** Start Tuning, Settings…, Quit.
 - **Start Tuning** opens an `NSPopover` under the icon and turns the mic on. The mic is never on outside tuning mode.
 - **Ending tuning mode:**
