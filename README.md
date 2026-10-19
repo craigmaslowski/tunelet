@@ -17,7 +17,11 @@ Builds with the Xcode Command Line Tools alone; Xcode isn't needed.
 
 macOS remembers microphone permission against the app's signature. Ad-hoc signatures change on every build, so without a stable identity you'll be asked for mic access again after each rebuild.
 
-1. Open **Keychain Access** and choose **Keychain Access → Certificate Assistant → Create a Certificate…**
+1. Open Keychain Access. On macOS 26 it's no longer in Utilities, and Spotlight tends to open the Passwords app instead, which can't create certificates. Open it directly:
+   ```sh
+   open "/System/Library/CoreServices/Applications/Keychain Access.app"
+   ```
+   Then choose **Keychain Access → Certificate Assistant → Create a Certificate…**
 2. Set **Name** to `Tunelet Dev` (any name works), **Identity Type** to **Self Signed Root**, and **Certificate Type** to **Code Signing**, then click **Create**.
 3. Tell the build scripts to use it:
    ```sh
