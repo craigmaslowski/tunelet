@@ -2,6 +2,10 @@
 
 A menu-bar guitar tuner for macOS 26. Guitar and chromatic modes, user-defined 6-string tunings, A4 calibration. The microphone is only on while the tuning popover is open. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
 
+<p align="center">
+  <img src="docs/tunelet-tuning.png" width="380" alt="Tunelet's tuning popover open below its menu-bar icon, in guitar mode with Standard tuning, waiting for a string to be plucked">
+</p>
+
 Builds with the Xcode Command Line Tools alone; Xcode isn't needed.
 
 This is a personal project. There are no released binaries, and it isn't notarized. To use it, build it from source and sign it with your own self-signed certificate (below).
