@@ -44,6 +44,8 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Pitch detection:** YIN, using the cumulative mean normalized difference and parabolic interpolation, computed with vDSP.
   - **Range:** 60 Hz–1.2 kHz. The lowest tuning in use has D2 (73.4 Hz) on the 6th string, so 60 Hz leaves room below it.
   - **Confidence:** YIN's confidence value decides whether a pitch is present. It drives the display and the auto-stop timer.
+  - **Pitch reference:** Tunelet reports the period of the whole waveform, not the bare fundamental. Real strings are stiff, so their overtones run slightly sharp and pull the reading about 1–1.5¢ sharp of the fundamental on a modelled stiff string. The ear is pulled the same way, the effect is below audibility, and most software tuners behave like this. Correcting toward the bare fundamental was considered and rejected: it adds an FFT refinement step, and the low E's fundamental is its weakest partial, so the correction would be noisiest where it matters most.
+  - **Measured accuracy:** about 0.25¢ or better on clean harmonic signals from D2 to E5, at 44.1, 48 and 96 kHz.
 - **Smoothing:**
   - Median of the last few readings, which drops outliers from the pick attack
   - Spring-animated needle
@@ -64,7 +66,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - `Tunelet` is the app executable.
 - **App bundle:** a script assembles `Tunelet.app` with its Info.plist (`NSMicrophoneUsageDescription`, `LSUIElement`). It signs the app with a self-signed Keychain code-signing identity, so the mic permission survives rebuilds, then installs it to `~/Applications`.
 - **Lowest macOS version:** 26.
-- **Tests:** Swift Testing through `swift test`.
+- **Tests:** Swift Testing, run with `scripts/test.sh`, not a bare `swift test`. With only the Command Line Tools and a macOS 26 target, SwiftPM's default build engine sometimes compiles tests with an explicit plugin list that leaves out Swift Testing's macro plugin. The script adds the toolchain's testing plugin directory as a search path, worked out from `xcrun`.
 - **Bundle ID:** `com.craigmaslowski.Tunelet`.
 
 ## Build order
