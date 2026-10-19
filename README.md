@@ -4,6 +4,8 @@ A menu-bar guitar tuner for macOS 26. Guitar and chromatic modes, user-defined 6
 
 Builds with the Xcode Command Line Tools alone; Xcode isn't needed.
 
+This is a personal project. There are no released binaries, and it isn't notarized. To use it, build it from source and sign it with your own self-signed certificate (below).
+
 ## Scripts
 
 | Command | What it does |
@@ -17,12 +19,11 @@ Builds with the Xcode Command Line Tools alone; Xcode isn't needed.
 
 macOS remembers microphone permission against the app's signature. Ad-hoc signatures change on every build, so without a stable identity you'll be asked for mic access again after each rebuild.
 
-1. Open Keychain Access. On macOS 26 it's no longer in Utilities, and Spotlight tends to open the Passwords app instead, which can't create certificates. Open it directly:
+1. Open the Certificate Assistant app. On macOS 26 Keychain Access no longer has a Certificate Assistant menu, but the standalone app is still there:
    ```sh
-   open "/System/Library/CoreServices/Applications/Keychain Access.app"
+   open "/System/Library/CoreServices/Certificate Assistant.app"
    ```
-   Then choose **Keychain Access → Certificate Assistant → Create a Certificate…**
-2. Set **Name** to `Tunelet Dev` (any name works), **Identity Type** to **Self Signed Root**, and **Certificate Type** to **Code Signing**, then click **Create**.
+2. Create a certificate with **Name** `Tunelet Dev` (any name works), **Identity Type** **Self Signed Root** and **Certificate Type** **Code Signing**.
 3. Tell the build scripts to use it:
    ```sh
    echo "Tunelet Dev" > .signing-identity
