@@ -176,7 +176,7 @@ struct GaugeView: View {
                 Needle(center: center, length: radius - 2, angle: angle)
                     .stroke(active ? color : Color.secondary.opacity(0.35),
                             style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: angle)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: angle)
             }
         }
         .accessibilityElement()

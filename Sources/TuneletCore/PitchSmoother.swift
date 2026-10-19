@@ -1,73 +1,152 @@
 /// Turns raw ~50/s pitch readings into a steady value for display.
 ///
-/// - Median of the last few readings drops outliers from the pick attack.
-/// - A jump of more than `jumpCents` (a different string or note) resets the history so the new
-///   note shows immediately, but only once two consecutive readings agree on it. A lone outlier,
-///   such as a single octave error, is ignored.
-/// - When the pitch disappears, the last value is held for `holdDuration` so it can still be read
-///   as the string decays.
+/// - **Median** of the last few readings settles jitter and drops outliers from the pick attack.
+/// - **Note changes need evidence.** A real new note arrives with an attack (a jump in level).
+///   As a string fades, its fundamental can sink below the noise before its 2nd or 3rd harmonic
+///   does, and the detector then reports the harmonic. So:
+///   - a jump to a harmonically related note (×2…×6 or ÷2…÷6) is accepted only just after an attack;
+///   - a jump to an unrelated note is accepted once it persists for `unrelatedConfirmCount`
+///     readings, so a second string plucked over a ringing first one still comes through.
+/// - **Tail cutoff:** once the level falls `tailRatio` below the note's peak, readings are no
+///   longer trusted, including after the note has ended, until the next attack.
+/// - **Hold:** when there's no trusted pitch, the last value stays for `holdDuration` (reported as
+///   `.held` after a short grace period, so a single dropped reading doesn't flicker). After the
+///   hold, the ended note is remembered until the next attack, so a harmonic that outlives the
+///   hold still isn't shown as a new note.
 public struct PitchSmoother {
     public enum Output: Equatable {
         /// A current, smoothed frequency in Hz.
         case pitch(Double)
-        /// No pitch right now; this is the last smoothed frequency, still within the hold time.
+        /// No trusted pitch right now; this is the last smoothed frequency, still within the hold time.
         case held(Double)
         case none
     }
 
-    public var medianCount: Int
-    public var jumpCents: Double
-    public var holdDuration: Double
+    public var medianCount = 9
+    /// Bigger jumps than this (in cents) count as a different note rather than tuning movement.
+    public var jumpCents = 100.0
+    public var holdDuration = 1.5
+    /// Missing readings for less than this keep reporting `.pitch` rather than `.held`.
+    public var dropoutGrace = 0.1
+    /// A level rise of this ratio over the quietest of the previous `onsetLookback` readings is an attack (2 = +6 dB).
+    public var onsetRatio: Float = 2
+    public var onsetLookback = 3
+    /// How long after an attack a note change is allowed.
+    public var attackWindow = 0.15
+    /// Readings below this fraction of the note's peak level are not trusted (0.0316 = -30 dB).
+    public var tailRatio: Float = 0.0316
+    public var unrelatedConfirmCount = 5
+    /// How close (in cents) a frequency ratio must be to a whole number to count as harmonic.
+    /// 50¢ means "rounds to the same note an octave (twelfth, …) away"; harmonics read near the
+    /// noise floor drift by tens of cents.
+    public var harmonicToleranceCents = 50.0
 
     private var recent: [Double] = []
-    private var pendingJump: Double?
+    private var levels: [Float] = []
+    private var lastAttack: Double?
+    private var peak: Float = 0
+    private var candidate: Double?
+    private var candidateCount = 0
     private var lastOutput: Double?
     private var lastPitchTime: Double?
+    /// The note that last ended without a new attack since.
+    private var endedNote: Double?
 
-    public init(medianCount: Int = 5, jumpCents: Double = 100, holdDuration: Double = 1.5) {
-        self.medianCount = medianCount
-        self.jumpCents = jumpCents
-        self.holdDuration = holdDuration
-        recent.reserveCapacity(medianCount)
-    }
+    public init() {}
 
     /// Feeds one reading. `time` is any monotonic clock in seconds.
-    public mutating func update(_ estimate: PitchEstimate?, at time: Double) -> Output {
-        guard let frequency = estimate?.frequency else {
-            if let lastOutput, let lastPitchTime, time - lastPitchTime <= holdDuration {
-                return .held(lastOutput)
-            }
-            reset()
+    public mutating func update(_ reading: PitchReading, at time: Double) -> Output {
+        trackLevel(reading.rms, at: time)
+
+        var frequency = reading.estimate?.frequency
+        // The peak is kept until the next attack, so this also covers the fade after a note ends.
+        if reading.rms < peak * tailRatio { frequency = nil }
+        guard let frequency else { return noPitch(at: time) }
+
+        if lastOutput == nil, let ended = endedNote, isHarmonic(frequency, of: ended) {
             return .none
         }
-        lastPitchTime = time
 
         if let current = lastOutput, abs(Pitch.cents(frequency, from: current)) > jumpCents {
-            if let pending = pendingJump, abs(Pitch.cents(frequency, from: pending)) <= jumpCents / 2 {
-                // Two readings in a row agree on a new note: start over from them.
-                recent = [pending]
-                pendingJump = nil
+            let inAttack = lastAttack.map { time - $0 <= attackWindow } ?? false
+            if inAttack {
+                startNote()
+            } else if isHarmonic(frequency, of: current) {
+                // Most likely a harmonic outlasting the fundamental: not a new note.
+                return noPitch(at: time)
             } else {
-                // Possibly an outlier. Remember it, keep showing the current note.
-                pendingJump = frequency
-                return .pitch(current)
+                if let c = candidate, abs(Pitch.cents(frequency, from: c)) <= jumpCents / 2 {
+                    candidateCount += 1
+                } else {
+                    candidate = frequency
+                    candidateCount = 1
+                }
+                guard candidateCount >= unrelatedConfirmCount else { return noPitch(at: time) }
+                startNote()
             }
         } else {
-            pendingJump = nil
+            candidate = nil
+            candidateCount = 0
         }
 
         recent.append(frequency)
         if recent.count > medianCount { recent.removeFirst() }
         let median = Self.median(recent)
         lastOutput = median
+        lastPitchTime = time
         return .pitch(median)
     }
 
     public mutating func reset() {
         recent.removeAll(keepingCapacity: true)
-        pendingJump = nil
+        levels.removeAll(keepingCapacity: true)
+        lastAttack = nil
+        peak = 0
+        candidate = nil
+        candidateCount = 0
         lastOutput = nil
         lastPitchTime = nil
+        endedNote = nil
+    }
+
+    private mutating func trackLevel(_ rms: Float, at time: Double) {
+        if levels.count == onsetLookback, let quietest = levels.min(), rms >= onsetRatio * max(quietest, 1e-6) {
+            lastAttack = time
+            peak = rms
+            endedNote = nil
+        } else {
+            peak = max(peak, rms)
+        }
+        levels.append(rms)
+        if levels.count > onsetLookback { levels.removeFirst() }
+    }
+
+    private mutating func startNote() {
+        recent.removeAll(keepingCapacity: true)
+        candidate = nil
+        candidateCount = 0
+    }
+
+    private mutating func noPitch(at time: Double) -> Output {
+        guard let lastOutput, let lastPitchTime else { return .none }
+        let silentFor = time - lastPitchTime
+        if silentFor <= dropoutGrace { return .pitch(lastOutput) }
+        if silentFor <= holdDuration { return .held(lastOutput) }
+        // The note is over. Keep level history so the next attack is still recognised.
+        endedNote = lastOutput
+        recent.removeAll(keepingCapacity: true)
+        candidate = nil
+        candidateCount = 0
+        self.lastOutput = nil
+        self.lastPitchTime = nil
+        return .none
+    }
+
+    private func isHarmonic(_ frequency: Double, of reference: Double) -> Bool {
+        var ratio = frequency / reference
+        if ratio < 1 { ratio = 1 / ratio }
+        let whole = ratio.rounded()
+        return (2...6).contains(whole) && abs(Pitch.cents(ratio, from: whole)) <= harmonicToleranceCents
     }
 
     private static func median(_ values: [Double]) -> Double {

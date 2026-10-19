@@ -31,6 +31,30 @@ enum SyntheticSignal {
         }
     }
 
+    /// A long, decaying pluck where each harmonic has its own decay rate (per second), over a
+    /// constant noise floor. With the default low-E profile the fundamental starts weak and dies
+    /// faster than the 2nd harmonic, which is what makes a fading string read an octave high.
+    static func decayingPluck(
+        frequency: Double,
+        sampleRate: Double,
+        duration: Double,
+        partials: [(amplitude: Double, decay: Double)] = [(0.35, 1.1), (1.0, 0.55), (0.8, 0.8), (0.5, 1.0), (0.3, 1.4), (0.2, 1.8)],
+        gain: Double = 0.15,
+        noiseFloor: Double = 0.0015,
+        seed: UInt64 = 3
+    ) -> [Float] {
+        var rng = SeededGenerator(seed: seed)
+        return (0..<Int(sampleRate * duration)).map { i in
+            let t = Double(i) / sampleRate
+            var sample = 0.0
+            for (index, partial) in partials.enumerated() {
+                let n = Double(index + 1)
+                sample += partial.amplitude * exp(-t * partial.decay) * sin(2 * .pi * frequency * n * t + n)
+            }
+            return Float(gain * sample + Double.random(in: -noiseFloor...noiseFloor, using: &rng))
+        }
+    }
+
     static func whiteNoise(count: Int, amplitude: Float = 0.2, seed: UInt64 = 7) -> [Float] {
         var rng = SeededGenerator(seed: seed)
         return (0..<count).map { _ in Float.random(in: -amplitude...amplitude, using: &rng) }

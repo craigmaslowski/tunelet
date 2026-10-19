@@ -55,17 +55,16 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - **Confidence:** YIN's confidence value decides whether a pitch is present. It drives the display and the auto-stop timer.
   - **Pitch reference:** Tunelet reports the period of the whole waveform, not the bare fundamental. Real strings are stiff, so their overtones run slightly sharp and pull the reading about 1–1.5¢ sharp of the fundamental on a modelled stiff string. The ear is pulled the same way, the effect is below audibility, and most software tuners behave like this. Correcting toward the bare fundamental was considered and rejected: it adds an FFT refinement step, and the low E's fundamental is its weakest partial, so the correction would be noisiest where it matters most.
   - **Measured accuracy:** about 0.25¢ or better on clean harmonic signals from D2 to E5, at 44.1, 48 and 96 kHz.
-- **Smoothing:**
-  - Median of the last few readings, which drops outliers from the pick attack
-  - Spring-animated needle
-  - Reset when the note jumps by more than about 1 semitone, so a newly plucked string shows immediately
-  - When the note dies, the last reading stays on screen briefly, dimmed
+- **Smoothing** (`PitchSmoother`, applied in the session before display):
+  - **Median of 9 readings** (~180 ms) settles jitter and drops pick-attack outliers.
+  - **Note changes need evidence.** As a string fades, its fundamental can sink below the room noise before its 2nd or 3rd harmonic does, and YIN then reads the harmonic. This was seen on a real low E and reproduced synthetically. So:
+    - A jump to a **harmonically related** note (×2…×6 or ÷2…÷6, within 50¢) is accepted only within 150 ms of an **attack**: a level rise of at least 6 dB over the previous 3 readings.
+    - A jump to an **unrelated** note is accepted after 5 consistent readings (~100 ms), so a string plucked over a still-ringing one comes through even without a big level rise.
+  - **Tail cutoff:** readings more than 30 dB below the note's peak are untrusted. The peak is kept until the next attack, so this also covers the fade after the note ends.
+  - **Hold:** with no trusted pitch the last note stays for 1.5 s, dimmed after a 100 ms grace period so single dropouts don't flicker. After that, the ended note is remembered until the next attack, and its harmonics are still rejected.
+  - **Needle:** spring with response 0.35 s and damping 0.85.
 
-  Smoothing amounts are constants, set by ear on a real guitar. They are not user settings. Starting values:
-  - median of 5 readings (~100 ms)
-  - jump threshold 100¢. A jump only resets once **two consecutive readings agree** on the new note, so a lone octave error is ignored, at a cost of one reading (20 ms).
-  - hold 1.5 s
-  - needle spring: response 0.25 s, damping 0.8
+  These are constants, not user settings. They were checked against synthetic decaying plucks of all six strings at three noise floors (`fadingLowEStaysOnE2` is the regression test). Real recordings via a `tunelet-probe --record` option were considered and deferred until real-world results show they're needed.
 
 ## Build and distribution
 

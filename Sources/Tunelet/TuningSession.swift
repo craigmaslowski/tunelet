@@ -86,7 +86,7 @@ final class TuningSession {
 
     private func handle(_ reading: PitchReading) {
         guard state == .listening else { return }
-        let output = smoother.update(reading.estimate, at: ProcessInfo.processInfo.systemUptime)
+        let output = smoother.update(reading, at: ProcessInfo.processInfo.systemUptime)
         // Avoid invalidating the view when nothing changed (e.g. a long silence).
         if output != pitch { pitch = output }
         if reading.estimate != nil { lastPitchTime = Date() }
