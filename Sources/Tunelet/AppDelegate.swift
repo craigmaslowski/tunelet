@@ -18,7 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: TuningView(session: session, preferences: preferences))
+        let tuningHost = NSHostingController(rootView: TuningView(session: session, preferences: preferences))
+        // Publish the SwiftUI size before the popover is positioned. Without this the popover is
+        // placed for its default 320×320, then grows upward into the menu bar and notch.
+        tuningHost.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = tuningHost
 
         session.onLiveChange = { [weak self] live in self?.updateIcon(live: live) }
         session.onAutoStop = { [weak self] in self?.popover.performClose(nil) }
@@ -43,10 +47,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc private func openSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(preferences: preferences)))
+            let settingsHost = NSHostingController(rootView: SettingsView(preferences: preferences))
+            settingsHost.sizingOptions = [.preferredContentSize]
+            let window = NSWindow(contentViewController: settingsHost)
             window.title = "Tunelet Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
+            // Size to the content before centring; otherwise a 1×32 window gets centred and then
+            // grows down and to the right from there.
+            window.setContentSize(settingsHost.view.fittingSize)
             window.center()
             settingsWindow = window
         }
