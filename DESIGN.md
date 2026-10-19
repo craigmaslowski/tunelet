@@ -29,7 +29,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Tuning screen (popover):**
   - Large note name and cents offset
   - Measured frequency in Hz
-  - Needle gauge covering ±50 cents, with an in-tune zone
+  - Needle gauge covering ±50 cents (pegged beyond), with an in-tune zone of **±2¢**. Colours: green within ±2¢, yellow within ±10¢, orange beyond.
   - In guitar mode, the 6 strings with the current one highlighted
   - Guitar/chromatic switch, tuning picker, current A4 value
 - **Settings window:**
@@ -57,7 +57,11 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - Reset when the note jumps by more than about 1 semitone, so a newly plucked string shows immediately
   - When the note dies, the last reading stays on screen briefly, dimmed
 
-  Smoothing amounts are constants, set by ear on a real guitar. They are not user settings.
+  Smoothing amounts are constants, set by ear on a real guitar. They are not user settings. Starting values:
+  - median of 5 readings (~100 ms)
+  - jump threshold 100¢. A jump only resets once **two consecutive readings agree** on the new note, so a lone octave error is ignored, at a cost of one reading (20 ms).
+  - hold 1.5 s
+  - needle spring: response 0.25 s, damping 0.8
 
 ## Build and distribution
 

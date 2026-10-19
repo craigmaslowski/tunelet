@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: TuningView(session: session))
+        popover.contentViewController = NSHostingController(rootView: TuningView(session: session, preferences: preferences))
 
         session.onLiveChange = { [weak self] live in self?.updateIcon(live: live) }
         session.onAutoStop = { [weak self] in self?.popover.performClose(nil) }

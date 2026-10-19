@@ -18,8 +18,8 @@ final class TuningSession {
     private(set) var state: State = .idle {
         didSet { if (oldValue == .listening) != (state == .listening) { onLiveChange?(state == .listening) } }
     }
-    /// The most recent raw reading while listening.
-    private(set) var reading: PitchReading?
+    /// The smoothed pitch to display while listening.
+    private(set) var pitch: PitchSmoother.Output = .none
 
     /// Called when the microphone goes live or stops.
     @ObservationIgnored var onLiveChange: ((Bool) -> Void)?
@@ -30,6 +30,7 @@ final class TuningSession {
     @ObservationIgnored private let capture = AudioCapture()
     @ObservationIgnored private var lastPitchTime = Date()
     @ObservationIgnored private var idleCheck: Timer?
+    @ObservationIgnored private var smoother = PitchSmoother()
 
     init(preferences: Preferences) {
         self.preferences = preferences
@@ -59,7 +60,8 @@ final class TuningSession {
         idleCheck?.invalidate()
         idleCheck = nil
         capture.stop()
-        reading = nil
+        smoother.reset()
+        pitch = .none
         state = .idle
     }
 
@@ -84,7 +86,9 @@ final class TuningSession {
 
     private func handle(_ reading: PitchReading) {
         guard state == .listening else { return }
-        self.reading = reading
+        let output = smoother.update(reading.estimate, at: ProcessInfo.processInfo.systemUptime)
+        // Avoid invalidating the view when nothing changed (e.g. a long silence).
+        if output != pitch { pitch = output }
         if reading.estimate != nil { lastPitchTime = Date() }
     }
 
