@@ -22,19 +22,31 @@ public struct Note: Hashable, Sendable, Codable, CustomStringConvertible {
         midi = (octave + 1) * 12 + base + accidental
     }
 
-    private static let names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
+    private static let sharpNames = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
+    private static let flatNames = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"]
 
-    /// Pitch class name using sharps, e.g. "F♯".
-    public var name: String { Self.names[((midi % 12) + 12) % 12] }
+    /// Pitch class name, e.g. "F♯" or "G♭".
+    public func name(_ accidentals: Accidentals) -> String {
+        let names = accidentals == .sharps ? Self.sharpNames : Self.flatNames
+        return names[((midi % 12) + 12) % 12]
+    }
 
     /// Scientific pitch notation octave (middle C = C4).
     public var octave: Int { Int((Double(midi) / 12).rounded(.down)) - 1 }
 
-    public var description: String { "\(name)\(octave)" }
+    /// Name with octave, e.g. "F♯3" or "G♭3".
+    public func label(_ accidentals: Accidentals) -> String { "\(name(accidentals))\(octave)" }
+
+    public var description: String { label(.sharps) }
 
     public func frequency(a4: Double) -> Double {
         a4 * pow(2, Double(midi - 69) / 12)
     }
+}
+
+/// How black-key notes are spelled.
+public enum Accidentals: String, Hashable, Sendable, Codable, CaseIterable {
+    case sharps, flats
 }
 
 public enum Pitch {
@@ -58,12 +70,20 @@ public struct Tuning: Hashable, Sendable, Codable, Identifiable {
     public var id: UUID
     public var name: String
     public var strings: [Note]
+    /// Spelling for this tuning's notes; nil follows the global preference.
+    public var accidentals: Accidentals?
 
-    public init(id: UUID = UUID(), name: String, strings: [Note]) {
+    public init(id: UUID = UUID(), name: String, strings: [Note], accidentals: Accidentals? = nil) {
         precondition(strings.count == Self.stringCount, "a tuning needs exactly \(Self.stringCount) strings")
         self.id = id
         self.name = name
         self.strings = strings
+        self.accidentals = accidentals
+    }
+
+    /// The spelling to display: this tuning's override, or `global` if it has none.
+    public func accidentals(default global: Accidentals) -> Accidentals {
+        accidentals ?? global
     }
 
     public static let standard = Tuning(

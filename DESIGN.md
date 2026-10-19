@@ -8,6 +8,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Chromatic mode** shows the nearest note in equal temperament. Use it for badly detuned strings, capos, and anything outside the current tuning.
 - **Tunings are user-configured.** The only built-in one is Standard (E2 A2 D3 G3 B3 E4). Every tuning has exactly 6 strings.
 - **A4 calibration** is a reference pitch setting that defaults to 440 Hz.
+- **Sharps or flats** is a global preference (default: sharps). Each tuning can override it or follow the global setting. Chromatic mode uses the selected tuning's effective spelling, so note names don't change when you switch modes while tuning the same guitar.
 - **Reference tones** are a nice-to-have that may slip from v1.
 
 ### Explicitly out of scope

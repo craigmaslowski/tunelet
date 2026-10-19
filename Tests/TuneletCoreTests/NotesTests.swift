@@ -17,15 +17,20 @@ import Testing
         #expect(Note(text) == nil)
     }
 
-    @Test func roundTripsThroughDescription() {
+    @Test(arguments: Accidentals.allCases)
+    func roundTripsThroughLabel(accidentals: Accidentals) {
         for midi in 0...127 {
             let note = Note(midi: midi)
-            #expect(Note(note.description) == note, "\(note)")
+            #expect(Note(note.label(accidentals)) == note, "\(note.label(accidentals))")
         }
     }
 
-    @Test func namesUseSharps() {
-        #expect(Note(midi: 61).description == "C♯4")
+    @Test func spellsBlackKeysPerPreference() {
+        let all = (60...71).map { Note(midi: $0) }
+        #expect(all.map { $0.name(.sharps) } == ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"])
+        #expect(all.map { $0.name(.flats) } == ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"])
+        #expect(Note("D#2")!.label(.flats) == "E♭2")
+        #expect(Note("Eb2")!.label(.sharps) == "D♯2")
         #expect(Note("Eb2")!.description == "D♯2")
     }
 
@@ -91,8 +96,21 @@ import Testing
         #expect(Tuning.standard.nearestString(to: c3, a4: 440).index == 2)
     }
 
-    @Test func roundTripsThroughJSON() throws {
-        let custom = Tuning(name: "Mine", strings: ["D2", "A2", "D3", "F#3", "A3", "D4"].map { Note($0)! })
+    @Test func accidentalsOverrideFallsBackToGlobal() {
+        var tuning = Tuning(name: "Mine", strings: ["D2", "A2", "D3", "F#3", "A3", "D4"].map { Note($0)! })
+        #expect(tuning.accidentals == nil)
+        #expect(tuning.accidentals(default: .sharps) == .sharps)
+        #expect(tuning.accidentals(default: .flats) == .flats)
+
+        tuning.accidentals = .flats
+        #expect(tuning.accidentals(default: .sharps) == .flats)
+        #expect(tuning.strings[3].label(tuning.accidentals(default: .sharps)) == "G♭3")
+    }
+
+    @Test(arguments: [nil, Accidentals.sharps, Accidentals.flats])
+    func roundTripsThroughJSON(accidentals: Accidentals?) throws {
+        let custom = Tuning(name: "Mine", strings: ["D2", "A2", "D3", "F#3", "A3", "D4"].map { Note($0)! },
+                            accidentals: accidentals)
         let decoded = try JSONDecoder().decode(Tuning.self, from: JSONEncoder().encode(custom))
         #expect(decoded == custom)
     }
