@@ -13,6 +13,9 @@ public struct PitchEstimate: Sendable, Equatable {
 /// All working memory is allocated up front so `detect` can run on the analysis thread
 /// without allocating. Not thread-safe: use one instance per thread.
 public final class YINDetector {
+    /// Frequencies the detector covers by default: below a slack D2 up past the high frets.
+    public static let defaultRange: ClosedRange<Double> = 60...1200
+
     public let sampleRate: Double
     public let minFrequency: Double
     public let maxFrequency: Double
@@ -28,8 +31,8 @@ public final class YINDetector {
 
     public init(
         sampleRate: Double,
-        minFrequency: Double = 60,
-        maxFrequency: Double = 1200,
+        minFrequency: Double = YINDetector.defaultRange.lowerBound,
+        maxFrequency: Double = YINDetector.defaultRange.upperBound,
         threshold: Float = 0.15,
         windowDuration: Double = 0.085
     ) {

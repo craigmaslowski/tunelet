@@ -32,11 +32,15 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - Needle gauge covering ±50 cents (pegged beyond), with an in-tune zone of **±2¢**. Colours: green within ±2¢, yellow within ±10¢, orange beyond.
   - In guitar mode, the 6 strings with the current one highlighted
   - Guitar/chromatic switch, tuning picker, current A4 value
-- **Settings window:**
-  - Tuning editor
-  - A4 calibration
-  - Auto-stop timeout
-  - Launch at login toggle (`SMAppService`)
+- **Settings window** (two tabs):
+  - **General:**
+    - A4 calibration: 415–466 Hz, typed or stepped, with a reset to 440
+    - Global sharps/flats
+    - Auto-stop timeout: 30 s to 10 min
+    - Launch at login (`SMAppService`; the system is the source of truth, not a stored flag)
+  - **Tunings:**
+    - A list with **+** (new tuning, copying the selected one's notes, since alternate tunings usually differ from an existing one by a few strings) and **−** (with confirmation; the last tuning can't be deleted).
+    - The editor covers the name, a sharps/flats override (or "use global"), and the 6 string notes. Each note can be typed (`D2`, `F#3`, `Bb2`) or stepped by semitones, and shows its frequency. Notes outside the detector's range are rejected.
 
 ## Audio and signal processing
 
@@ -75,6 +79,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - `Tunelet` is the app executable.
 - **App bundle:** a script assembles `Tunelet.app` with its Info.plist (`NSMicrophoneUsageDescription`, `LSUIElement`). It signs the app with a self-signed Keychain code-signing identity, so the mic permission survives rebuilds, then installs it to `~/Applications`.
 - **Lowest macOS version:** 26.
+- **`@ViewState` instead of `@State`:** in the macOS 26 SDK, `@State` resolves to a macro whose plugin (SwiftUIMacros) ships only with Xcode. `ViewState` is a typealias for SwiftUI's `State` property wrapper, which skips the macro and has the same runtime behaviour. `@Observable` is unaffected, because its plugin is part of the toolchain.
 - **Tests:** Swift Testing, run with `scripts/test.sh`, not a bare `swift test`. With only the Command Line Tools and a macOS 26 target, SwiftPM's default build engine sometimes compiles tests with an explicit plugin list that leaves out Swift Testing's macro plugin. The script adds the toolchain's testing plugin directory as a search path, worked out from `xcrun`.
 - **Bundle ID:** `com.craigmaslowski.Tunelet`.
 
