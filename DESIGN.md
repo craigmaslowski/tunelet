@@ -41,7 +41,11 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 ## Audio and signal processing
 
 - **Capture:** `AVAudioSinkNode`, so the app receives the small hardware buffers. The real-time callback only copies samples into a lock-free ring buffer: no allocation and no locks.
-- **Analysis thread:** runs every ~20 ms (~50 readings/s) over a ~85 ms window (4096 samples at 48 kHz).
+  - **Ring buffer (`SampleRing`):** holds about 1 s of channel-0 samples. The producer records how far it is about to write before writing, then publishes the new end. The consumer copies the newest window, then checks against that reservation and throws away any copy a write overlapped. A stress test confirms copies are never torn.
+- **Analysis thread (`PitchAnalyzer`):** a dispatch timer on its own queue at `userInteractive` priority. It runs every ~20 ms (~50 readings/s) over a ~85 ms window (4096 samples at 48 kHz), and skips a run when no new audio has arrived. Windows quieter than -50 dBFS RMS count as silence, and YIN isn't run on them.
+- **Output:** raw readings (pitch or none, plus RMS level) are delivered to the main actor. Smoothing is applied on top of these in the tuning screen layer (step 4).
+- **Device changes:** on `AVAudioEngineConfigurationChange`, capture rebuilds for the new format.
+- **`tunelet-probe`:** a command-line tool (`swift run tunelet-probe [seconds]`) that prints live readings. It's for checking capture against a real guitar.
 - **Pitch detection:** YIN, using the cumulative mean normalized difference and parabolic interpolation, computed with vDSP.
   - **Range:** 60 Hz–1.2 kHz. The lowest tuning in use has D2 (73.4 Hz) on the 6th string, so 60 Hz leaves room below it.
   - **Confidence:** YIN's confidence value decides whether a pitch is present. It drives the display and the auto-stop timer.
