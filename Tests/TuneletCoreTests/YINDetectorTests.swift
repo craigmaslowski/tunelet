@@ -67,6 +67,18 @@ import Testing
         }
     }
 
+    /// An 8-string's lowest strings, with the floor lowered as an 8-string tuning lowers it.
+    @Test(arguments: ["F#1", "G1", "B1"])
+    func extendedFloorDetectsLowStrings(name: String) throws {
+        let detector = YINDetector(sampleRate: 48_000, minFrequency: Tuning.extendedFloor(a4: 440))
+        let f = Note(name)!.frequency(a4: 440)
+        for harmonics in [SyntheticSignal.weakFundamental, SyntheticSignal.lowEAttack] {
+            let signal = SyntheticSignal.pluck(frequency: f, sampleRate: 48_000, count: detector.windowSize, harmonics: harmonics)
+            let estimate = try #require(detector.detect(signal))
+            #expect(abs(Pitch.cents(estimate.frequency, from: f)) < 0.5, "\(name) read as \(estimate.frequency) Hz")
+        }
+    }
+
     @Test func pureSineIsExact() {
         let detector = YINDetector(sampleRate: 48_000)
         let signal = SyntheticSignal.pluck(frequency: 110, sampleRate: 48_000, count: detector.windowSize,

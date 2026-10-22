@@ -3,7 +3,7 @@
 A menu-bar guitar tuner for macOS 26. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
 
 - **Guitar and chromatic modes.** Guitar mode snaps to the nearest string of the current tuning; chromatic mode shows the nearest note.
-- **Your own tunings.** Standard is built in; add any 6-string tuning, spelled with sharps or flats.
+- **Your own tunings.** Standard is built in; add tunings of 4 to 8 strings, from ukuleles to 8-string guitars, spelled with sharps or flats.
 - **Reference tones.** Click a string to hear its note.
 - **Adjustable.** Set the A4 reference (415–466 Hz) and how close counts as in tune (±1–10¢, default ±2¢).
 - **Private by default.** The microphone is only on while the tuning popover is open, and turns itself off after a period of silence.

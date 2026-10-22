@@ -47,6 +47,21 @@ import Testing
         #expect(analyzer.analyze() != nil)
     }
 
+    @Test func floorCanBeLoweredWhileInUse() throws {
+        let (ring, analyzer) = makeAnalyzer()
+        let fSharp1 = Note("F#1")!.frequency(a4: 440)
+        let signal = SyntheticSignal.pluck(frequency: fSharp1, sampleRate: Self.sampleRate, count: 2 * analyzer.detector.windowSize)
+        feed(ring, signal)
+        // At the standard 60 Hz floor, F♯1 (46 Hz) can't be read as itself.
+        let before = try #require(analyzer.analyze())
+        #expect(before.estimate.map { abs(Pitch.cents($0.frequency, from: fSharp1)) > 50 } ?? true)
+
+        analyzer.setMinimumFrequency(Tuning.extendedFloor(a4: 440))
+        let after = try #require(analyzer.analyze())          // re-analyses the same audio
+        let estimate = try #require(after.estimate)
+        #expect(abs(Pitch.cents(estimate.frequency, from: fSharp1)) < 0.5)
+    }
+
     @Test func quietSignalIsSilence() throws {
         let (ring, analyzer) = makeAnalyzer()
         // A clean tone at -60 dBFS: periodic, but below the silence gate.

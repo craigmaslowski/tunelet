@@ -25,6 +25,10 @@ public final class AudioCapture {
 
     public private(set) var isRunning = false
     public private(set) var sampleRate: Double = 0
+    /// The lowest frequency listened for. Can be changed while running.
+    public var minimumFrequency = YINDetector.defaultRange.lowerBound {
+        didSet { analyzer?.setMinimumFrequency(minimumFrequency) }
+    }
 
     private let engine = AVAudioEngine()
     private var sink: AVAudioSinkNode?
@@ -40,7 +44,7 @@ public final class AudioCapture {
         guard format.sampleRate > 0, format.channelCount > 0 else { throw AudioCaptureError.noInputDevice }
         guard format.commonFormat == .pcmFormatFloat32 else { throw AudioCaptureError.unsupportedFormat(format) }
 
-        let windowSize = YINDetector(sampleRate: format.sampleRate).windowSize
+        let windowSize = YINDetector(sampleRate: format.sampleRate, minFrequency: PitchAnalyzer.lowestFloor).windowSize
         // About a second of headroom: the analyzer reads every 20 ms, so it can never be lapped in practice.
         let ring = SampleRing(minimumCapacity: max(Int(format.sampleRate), 4 * windowSize))
         let stride = format.isInterleaved ? Int(format.channelCount) : 1
@@ -48,7 +52,7 @@ public final class AudioCapture {
         engine.attach(sink)
         engine.connect(input, to: sink, format: format)
 
-        let analyzer = PitchAnalyzer(ring: ring, sampleRate: format.sampleRate)
+        let analyzer = PitchAnalyzer(ring: ring, sampleRate: format.sampleRate, minimumFrequency: minimumFrequency)
         do {
             engine.prepare()
             try engine.start()

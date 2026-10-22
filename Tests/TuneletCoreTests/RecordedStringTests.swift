@@ -43,11 +43,13 @@ import Testing
         return (Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))), format.sampleRate)
     }
 
-    /// Guitar mode must show this string and no other, at any moment, current or held.
-    @Test(arguments: samples)
-    func showsOnlyItsOwnString(sample: Sample) throws {
+    /// Guitar mode must show this string and no other, at any moment, current or held. Checked at
+    /// the standard 60 Hz floor and at the extended floor that 8-string tunings and chromatic
+    /// mode's low-notes switch use, where low resonances could otherwise be read as notes.
+    @Test(arguments: samples, [YINDetector.defaultRange.lowerBound, Tuning.extendedFloor(a4: 440)])
+    func showsOnlyItsOwnString(sample: Sample, floor: Double) throws {
         let (signal, sampleRate) = try Self.load(sample)
-        let steps = Pipeline.run(signal, sampleRate: sampleRate)
+        let steps = Pipeline.run(signal, sampleRate: sampleRate, minimumFrequency: floor)
         let shownStrings = steps.compactMap(\.shown).map {
             TunerMode.guitar.target(for: $0, tuning: .standard, a4: 440).string!
         }

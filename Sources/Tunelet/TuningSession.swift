@@ -43,6 +43,26 @@ final class TuningSession {
     init(preferences: Preferences) {
         self.preferences = preferences
         tonePlayer.onFinish = { [weak self] in self?.referenceFinished() }
+        trackDetectionFloor()
+    }
+
+    /// The lowest frequency to listen for. Guitar mode follows the selected tuning (60 Hz unless it
+    /// has notes below about 80 Hz); chromatic mode stays at 60 Hz unless low notes are turned on.
+    var detectionFloor: Double {
+        switch preferences.mode {
+        case .guitar:
+            preferences.selectedTuning.detectionFloor(a4: preferences.a4)
+        case .chromatic:
+            preferences.chromaticLowNotes ? Tuning.extendedFloor(a4: preferences.a4) : YINDetector.defaultRange.lowerBound
+        }
+    }
+
+    /// Keeps the detector's floor in step with the mode, tuning, A4 and low-notes setting.
+    private func trackDetectionFloor() {
+        let floor = withObservationTracking { detectionFloor } onChange: { [weak self] in
+            Task { @MainActor in self?.trackDetectionFloor() }
+        }
+        capture.minimumFrequency = floor
     }
 
     var isActive: Bool { state != .idle }

@@ -111,6 +111,27 @@ import Testing
         }
     }
 
+    /// Regression: with the floor lowered to 35 Hz, a fading A2 was read as A1 (a low resonance)
+    /// late in the note and shown. Once settled, a note's octave can't change downward either.
+    @Test func octaveDownAfterSettlingIsRejected() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, 110, count: 40, level: 0.05, t: &t)                            // settled A2
+        for _ in 0..<20 {
+            let out = s.update(reading(55, level: 0.04), at: t)
+            t += dt
+            if let f = frequency(out) { #expect(abs(f - 110) < 0.01, "showed \(f) Hz") }
+        }
+    }
+
+    @Test func resonanceAfterNoteEndsIsRejected() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, 110, count: 10, level: 0.05, t: &t)
+        steady(&s, nil, count: 100, level: 0.01, t: &t)                           // hold runs out
+        #expect(steady(&s, 55, count: 20, level: 0.01, t: &t) == PitchSmoother.Output.none)
+    }
+
     @Test func unrelatedNoteWithoutAttackNeedsToPersist() {
         var s = PitchSmoother()
         var t = 0.0
@@ -214,7 +235,7 @@ extension PitchSmootherTests {
         }
         let shown = Set(Pipeline.run(signal, sampleRate: sampleRate).compactMap(\.shown).map { out in
             let target = TunerMode.guitar.target(for: out, tuning: .standard, a4: 440)
-            return Pitch.nearestNote(to: out, a4: 440).note.description + "/string \(Tuning.stringCount - target.string!)"
+            return Pitch.nearestNote(to: out, a4: 440).note.description + "/string \(Tuning.standard.strings.count - target.string!)"
         })
         #expect(shown == ["\(name)/string 6"], "displayed \(shown.sorted())")
     }

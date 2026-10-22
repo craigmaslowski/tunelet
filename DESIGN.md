@@ -6,7 +6,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 
 - **Guitar mode** snaps to the nearest string of the current tuning and shows the offset from that string's target.
 - **Chromatic mode** shows the nearest note in equal temperament. Use it for badly detuned strings, capos, and anything outside the current tuning.
-- **Tunings are user-configured.** The only built-in one is Standard (E2 A2 D3 G3 B3 E4). Every tuning has exactly 6 strings.
+- **Tunings are user-configured.** The only built-in one is Standard (E2 A2 D3 G3 B3 E4). A tuning has **4 to 8 strings**, covering ukuleles (including re-entrant tunings like G4 C4 E4 A4) up to 8-string guitars. The lowest allowed string note is F♯1, an 8-string's low string.
 - **A4 calibration** is a reference pitch setting that defaults to 440 Hz.
 - **Sharps or flats** is a global preference (default: sharps). Each tuning can override it or follow the global setting. Chromatic mode uses the selected tuning's effective spelling, so note names don't change when you switch modes while tuning the same guitar.
 - **Reference tones:** in guitar mode, clicking a string's circle in the tuner plays that string's note (current tuning and A4) as a 2 s pluck. Settings has an on/off toggle, on by default.
@@ -18,7 +18,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 
 - **"String tuned" markers.** Tuning one string changes neck tension, so strings tuned earlier drift. Markers would make people trust a stale result and skip re-checking every string.
 - **Manual string lock.** Auto-snap plus chromatic mode covers this.
-- **Tunings with other than 6 strings, and bass.**
+- **12-string guitars** (by choice) and **bass** (its fundamentals, down to 31 Hz, need a longer analysis window that would slow every instrument, and a laptop mic barely reproduces them).
 
 ## Interface
 
@@ -33,7 +33,8 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - Large note name and cents offset
   - Measured frequency in Hz
   - Needle gauge covering ±50 cents (pegged beyond), with an in-tune zone that defaults to **±2¢** and can be set from ±1¢ to ±10¢ in Settings. Colours: green within the in-tune range, yellow out to ±10¢ (or the range, if wider), orange beyond.
-  - In guitar mode, the 6 strings with the current one highlighted
+  - In guitar mode, the tuning's strings with the current one highlighted. Circles are 40 pt and shrink to fit 7 or 8 strings in one row.
+  - In chromatic mode, a **Low notes** switch (off by default, remembered) with a one-line description: "Detect notes down to D♯1, for 7- and 8-string guitars."
   - Guitar/chromatic switch, tuning picker, current A4 value
 - **Settings window** (two tabs):
   - **General:**
@@ -45,7 +46,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
     - Launch at login (`SMAppService`; the system is the source of truth, not a stored flag)
   - **Tunings:**
     - A list with **+** (new tuning, copying the selected one's notes, since alternate tunings usually differ from an existing one by a few strings) and **−** (with confirmation; the last tuning can't be deleted).
-    - The editor covers the name, a sharps/flats override (or "use global"), and the 6 string notes. Each note can be typed (`D2`, `F#3`, `Bb2`) or stepped by semitones, and shows its frequency. Notes outside the detector's range are rejected.
+    - The editor covers the name, a sharps/flats override (or "use global"), a **Number of strings** stepper (4–8), and the string notes. The stepper adds and removes strings on the bass side; a new string goes a fourth below the current bass-side string (6 → 7 adds B1, 7 → 8 adds F♯1), but not below F♯1. Each note can be typed (`D2`, `F#3`, `Bb2`) or stepped by semitones, and shows its frequency. Notes outside the detector's range are rejected.
 
 ## Audio and signal processing
 
@@ -56,7 +57,10 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Device changes:** on `AVAudioEngineConfigurationChange`, capture rebuilds for the new format.
 - **`tunelet-probe`:** a command-line tool (`swift run tunelet-probe [seconds]`) that prints live readings. It's for checking capture against a real guitar.
 - **Pitch detection:** YIN, using the cumulative mean normalized difference and parabolic interpolation, computed with vDSP.
-  - **Range:** 60 Hz–1.2 kHz. The lowest tuning in use has D2 (73.4 Hz) on the 6th string, so 60 Hz leaves room below it.
+  - **Range:** up to 1.2 kHz. The floor is normally **60 Hz**, and changes while listening without restarting the mic:
+    - **Guitar mode:** a minor third (3 semitones) below the selected tuning's lowest string, but never above 60 Hz. Standard, drop D (D2 → 61.7 Hz, capped to 60) and ukuleles keep exactly 60 Hz; drop C lowers it to 55 Hz; a 7-string (B1) to 52 Hz; an 8-string (F♯1) to 39 Hz (D♯1). Five semitones was considered first, but it would have lowered drop D's floor too.
+    - **Chromatic mode:** 60 Hz, or 39 Hz (D♯1) with the Low notes switch on.
+    - **Why the floor isn't simply always low:** with it at 35–39 Hz, a fading A string on the HB guitar was read as A1. A low body or room resonance with no harmonics of its own became periodic enough for YIN once the A2 faded. The symmetric octave rule in the smoother below stops that from being displayed. Even so, the lowered floor is opt-in, and every recording is tested at both floors.
   - **Confidence:** YIN's confidence value decides whether a pitch is present. It drives the display and the auto-stop timer.
   - **Pitch reference:** Tunelet reports the period of the whole waveform, not the bare fundamental. Real strings are stiff, so their overtones run slightly sharp and pull the reading about 1–1.5¢ sharp of the fundamental on a modelled stiff string. The ear is pulled the same way, the effect is below audibility, and most software tuners behave like this. Correcting toward the bare fundamental was considered and rejected: it adds an FFT refinement step, and the low E's fundamental is its weakest partial, so the correction would be noisiest where it matters most.
   - **Measured accuracy:** about 0.25¢ or better on clean harmonic signals from D2 to E5, at 44.1, 48 and 96 kHz.
@@ -69,10 +73,12 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
   - **Median of 9 readings** (~180 ms) settles jitter and drops pick-attack outliers.
   - **Note changes need evidence.** A harmonic can be misread as the note, both as a string fades (its fundamental sinks below the room noise first) and in a low string's attack (see the octave check). So:
     - **A new note** (from silence, or a jump within 150 ms of an **attack**, meaning a level rise of at least 6 dB over the previous 3 readings) is shown once **3 readings agree** (60 ms). On the real recording, the first one or two readings of a pluck could be an octave high.
-    - **A jump up to a harmonic** of the current note (×2…×6, within 50¢) without an attack is rejected once the note has **settled** (0.6 s after it was committed): that's a harmonic outlasting the fundamental. While a note is still settling, an octave correction is allowed in either direction, since the detector can misjudge an attack's octave both ways. This limits the damage when the detector errs. With the looser octave check, it cut the high e's wrong display from 3.4 s to 0.5 s.
-    - **Any other jump**, including **down** to a sub-harmonic, is accepted after 5 consistent readings (~100 ms). A jump down usually means the current note *was* a harmonic, so it must not need an attack. An earlier version rejected harmonic jumps in both directions, which locked onto E3 after an octave-high attack and never showed the real E2.
+    - **While a note is settling** (the first 0.6 s after it's committed), an octave correction is allowed in **either direction** after 5 consistent readings (~100 ms), since the detector can misjudge an attack's octave both ways. Every real attack correction in the recordings finished within 0.4 s.
+    - **Once a note has settled**, a jump to a harmonically related note (×2…×6 or ÷2…÷6, within 50¢) without an attack is rejected in **both directions**: a note's octave doesn't change without a new pluck. Up is a harmonic outlasting the fundamental; down is a low resonance outlasting it.
+      - History: an earlier version rejected harmonic jumps in both directions from the start, which locked onto E3 after an octave-high attack and never showed the real E2. The fix then allowed all downward jumps, which let the A string's A1 resonance through once the floor was lowered. The settling window resolves both.
+    - **Any unrelated jump** is accepted after 5 consistent readings, so a string plucked over a still-ringing one comes through even without a big level rise.
   - **Tail cutoff:** readings more than 30 dB below the note's peak are untrusted. The peak is kept until the next attack, so this also covers the fade after the note ends.
-  - **Hold:** with no trusted pitch the last note stays for 1.5 s, dimmed after a 100 ms grace period so single dropouts don't flicker. After that, the ended note is remembered until the next attack, and its harmonics are still rejected.
+  - **Hold:** with no trusted pitch the last note stays for 1.5 s, dimmed after a 100 ms grace period so single dropouts don't flicker. After that, the ended note is remembered until the next attack, and harmonically related notes in either direction are still rejected.
   - **Needle:** spring with response 0.35 s and damping 0.85.
 
   These are constants, not user settings. They were checked against synthetic decaying plucks of all six strings at three noise floors (`fadingLowEStaysOnE2` is the regression test). Real recordings via a `tunelet-probe --record` option were considered and deferred until real-world results show they're needed.
@@ -92,7 +98,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **`@ViewState` instead of `@State`:** in the macOS 26 SDK, `@State` resolves to a macro whose plugin (SwiftUIMacros) ships only with Xcode. `ViewState` is a typealias for SwiftUI's `State` property wrapper, which skips the macro and has the same runtime behaviour. `@Observable` is unaffected, because its plugin is part of the toolchain.
 - **Tests:** Swift Testing, run with `scripts/test.sh`, not a bare `swift test`. With only the Command Line Tools and a macOS 26 target, SwiftPM's default build engine sometimes compiles tests with an explicit plugin list that leaves out Swift Testing's macro plugin. The script adds the toolchain's testing plugin directory as a search path, worked out from `xcrun`. It also runs tests serially (`--no-parallel`); otherwise the analyzer timing test gets starved by the unoptimised full-pipeline tests running alongside it.
 - **Real-signal fixtures:**
-  - `audio-samples/` holds one real recording per string for each of three guitars: a Martin GPC-X1E and an HB CLC650 SM-CE (steel strings), and a Cordoba F7 (nylon). They're in tune by each guitar's own tuner, recorded through a MacBook mic, about 2 MB total. `RecordedStringTests` runs all 18 through the full pipeline. Guitar mode must show only that string, never another, and the settled reading must be within ±6¢. These tests fail on both earlier octave bugs (`f4449f6`: low E shown as D; `e141cc8`: high e shown as D) and pass on the fix.
+  - `audio-samples/` holds one real recording per string for each of three guitars: a Martin GPC-X1E and an HB CLC650 SM-CE (steel strings), and a Cordoba F7 (nylon). They're in tune by each guitar's own tuner, recorded through a MacBook mic, about 2 MB total. `RecordedStringTests` runs all 18 through the full pipeline. Guitar mode must show only that string, never another, and the settled reading must be within ±6¢. These tests fail on both earlier octave bugs (`f4449f6`: low E shown as D; `e141cc8`: high e shown as D) and pass on the fix. The only-its-own-string check also runs at the lowered 39 Hz floor; there, the HB A string fails without the symmetric octave rule.
   - The measured low-E attack and sustain spectra are also kept as synthetic profiles (`SyntheticSignal.lowEAttack` / `lowESustain`) for detector-level tests.
   - Settled readings on the samples range from −3.9¢ to +3.0¢ across all three guitars, leaving at least 2¢ of margin. The nylon guitar's are the tightest (−3.0¢ to +2.1¢). A hard-plucked low E reads +7 to +11¢ for its first second, which is real: amplitude-dependent tension makes it sound sharp. It then settles.
 - **Bundle ID:** `com.craigmaslowski.Tunelet`.

@@ -22,7 +22,7 @@ public final class PitchAnalyzer: @unchecked Sendable {
     /// Below this RMS (-50 dBFS) the window counts as silence and YIN is skipped.
     public static let defaultSilenceRMS: Float = 0.00316
 
-    public let detector: YINDetector
+    public private(set) var detector: YINDetector
     public let silenceRMS: Float
 
     // Everything below is confined to `queue` once started.
@@ -32,13 +32,30 @@ public final class PitchAnalyzer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "Tunelet.PitchAnalyzer", qos: .userInteractive)
     private var timer: DispatchSourceTimer?
 
-    public init(ring: SampleRing, sampleRate: Double, silenceRMS: Float = PitchAnalyzer.defaultSilenceRMS) {
-        detector = YINDetector(sampleRate: sampleRate)
-        precondition(ring.capacity >= detector.windowSize, "ring smaller than the analysis window")
+    public init(ring: SampleRing, sampleRate: Double, minimumFrequency: Double = YINDetector.defaultRange.lowerBound,
+                silenceRMS: Float = PitchAnalyzer.defaultSilenceRMS) {
+        detector = YINDetector(sampleRate: sampleRate, minFrequency: minimumFrequency)
+        // Room for the largest window any floor can need, so changing the floor never reallocates.
+        let capacity = max(detector.windowSize, YINDetector(sampleRate: sampleRate, minFrequency: Self.lowestFloor).windowSize)
+        precondition(ring.capacity >= capacity, "ring smaller than the analysis window")
         self.ring = ring
         self.silenceRMS = silenceRMS
-        window = .allocate(capacity: detector.windowSize)
-        window.initialize(repeating: 0, count: detector.windowSize)
+        window = .allocate(capacity: capacity)
+        window.initialize(repeating: 0, count: capacity)
+    }
+
+    /// No floor below this is supported.
+    public static let lowestFloor = 30.0
+
+    /// Changes the lowest frequency listened for. Safe while running: the detector is replaced on
+    /// the analysis queue, between analyses. Waits until the change has taken effect.
+    public func setMinimumFrequency(_ frequency: Double) {
+        let floor = max(frequency, Self.lowestFloor)
+        queue.sync {
+            guard abs(detector.minFrequency - floor) > 0.01 else { return }
+            detector = YINDetector(sampleRate: detector.sampleRate, minFrequency: floor)
+            lastAnalyzedEnd = -1
+        }
     }
 
     deinit {

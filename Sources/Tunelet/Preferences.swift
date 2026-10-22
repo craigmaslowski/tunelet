@@ -42,6 +42,11 @@ final class Preferences {
         didSet { defaults.set(inTuneCents, forKey: Keys.inTuneCents) }
     }
 
+    /// Chromatic mode listens down to `Tuning.extendedFloor` instead of 60 Hz.
+    var chromaticLowNotes: Bool {
+        didSet { defaults.set(chromaticLowNotes, forKey: Keys.chromaticLowNotes) }
+    }
+
     /// Clicking a string in the tuner plays its note.
     var referenceTones: Bool {
         didSet { defaults.set(referenceTones, forKey: Keys.referenceTones) }
@@ -72,6 +77,7 @@ final class Preferences {
         static let autoStopSeconds = "autoStopSeconds"
         static let inTuneCents = "inTuneCents"
         static let referenceTones = "referenceTones"
+        static let chromaticLowNotes = "chromaticLowNotes"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -84,8 +90,9 @@ final class Preferences {
 
         accidentals = defaults.string(forKey: Keys.accidentals).flatMap(Accidentals.init(rawValue:)) ?? .sharps
 
-        let storedTunings = defaults.data(forKey: Keys.tunings)
-            .flatMap { try? JSONDecoder().decode([Tuning].self, from: $0) } ?? []
+        let storedTunings = (defaults.data(forKey: Keys.tunings)
+            .flatMap { try? JSONDecoder().decode([Tuning].self, from: $0) } ?? [])
+            .filter { Tuning.stringCountRange.contains($0.strings.count) }
         let loadedTunings = storedTunings.isEmpty ? [Tuning.standard] : storedTunings
         tunings = loadedTunings
 
@@ -96,6 +103,7 @@ final class Preferences {
         inTuneCents = Self.inTuneRange.contains(storedInTune) ? storedInTune : 2
 
         referenceTones = defaults.object(forKey: Keys.referenceTones) as? Bool ?? true
+        chromaticLowNotes = defaults.bool(forKey: Keys.chromaticLowNotes)
 
         let storedTimeout = defaults.double(forKey: Keys.autoStopSeconds)
         autoStopSeconds = Self.autoStopRange.contains(storedTimeout) ? storedTimeout : 120

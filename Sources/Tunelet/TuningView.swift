@@ -115,6 +115,8 @@ private struct TunerReadout: View {
             if preferences.mode == .guitar {
                 StringsRow(tuning: tuning, accidentals: accidentals,
                            active: target?.string, inTune: inTune, onTap: playReference)
+            } else {
+                LowNotesToggle(preferences: preferences)
             }
         }
         // A held reading is the last value after the string went quiet: still readable, clearly stale.
@@ -127,6 +129,26 @@ private struct TunerReadout: View {
         if rounded == 0 { return "0.0¢" }
         // Typographic minus (U+2212) rather than a hyphen.
         return (rounded > 0 ? "+" : "\u{2212}") + String(format: "%.1f¢", abs(rounded))
+    }
+}
+
+/// Chromatic mode's switch for listening below 60 Hz. Off by default: a lower floor lets low
+/// resonances be mistaken for notes, so it's only worth it for 7- and 8-string guitars.
+private struct LowNotesToggle: View {
+    @Bindable var preferences: Preferences
+
+    var body: some View {
+        let floor = Pitch.nearestNote(to: Tuning.extendedFloor(a4: preferences.a4), a4: preferences.a4).note
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Low notes", isOn: $preferences.chromaticLowNotes)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            Text("Detect notes down to \(floor.label(preferences.accidentals)), for 7- and 8-string guitars.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
     }
 }
 
@@ -269,7 +291,7 @@ private struct StringsRow: View {
     var onTap: ((Int) -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Self.spacing) {
             ForEach(tuning.strings.indices, id: \.self) { i in
                 if let onTap {
                     Button { onTap(i) } label: { circle(i) }
@@ -284,23 +306,33 @@ private struct StringsRow: View {
         .animation(.easeOut(duration: 0.12), value: inTune)
     }
 
+    /// Circles are 40 pt for up to 6 strings and shrink so 7 or 8 still fit in one row.
+    private var diameter: Double {
+        let count = Double(tuning.strings.count)
+        return min(40, (Self.rowWidth - Self.spacing * (count - 1)) / count)
+    }
+
+    private static let rowWidth = 308.0     // popover width minus padding
+    private static let spacing = 8.0
+
     private func circle(_ i: Int) -> some View {
         let isActive = i == active
+        let number = tuning.strings.count - i
         return VStack(spacing: 3) {
             Circle()
                 .fill(isActive ? (inTune ? Color.green : Color.accentColor) : Color.secondary.opacity(0.15))
-                .frame(width: 40, height: 40)
+                .frame(width: diameter, height: diameter)
                 .overlay(
                     Text(tuning.strings[i].name(accidentals))
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 15 * diameter / 40, weight: .bold, design: .rounded))
                         .foregroundStyle(isActive ? Color.white : Color.primary)
                 )
-            Text("\(Tuning.stringCount - i)")
+            Text("\(number)")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement()
-        .accessibilityLabel("String \(Tuning.stringCount - i), \(tuning.strings[i].label(accidentals))")
+        .accessibilityLabel("String \(number), \(tuning.strings[i].label(accidentals))")
     }
 }
 

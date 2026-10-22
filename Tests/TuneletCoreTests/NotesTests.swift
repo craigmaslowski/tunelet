@@ -107,11 +107,62 @@ import Testing
         #expect(tuning.strings[3].label(tuning.accidentals(default: .sharps)) == "G♭3")
     }
 
+    static let sevenString = Tuning(name: "7-string", strings: ["B1", "E2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! })
+    static let eightString = Tuning(name: "8-string", strings: ["F#1", "B1", "E2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! })
+    /// Re-entrant: the 4th string (G4) is higher than the 3rd (C4).
+    static let ukulele = Tuning(name: "Ukulele", strings: ["G4", "C4", "E4", "A4"].map { Note($0)! })
+
+    @Test func nearestStringWithOtherCounts() {
+        #expect(Self.sevenString.nearestString(to: Note("B1")!.frequency(a4: 440), a4: 440).index == 0)
+        #expect(Self.eightString.nearestString(to: Note("F#1")!.frequency(a4: 440), a4: 440).index == 0)
+        #expect(Self.eightString.nearestString(to: Note("E4")!.frequency(a4: 440), a4: 440).index == 7)
+        #expect(Self.ukulele.nearestString(to: Note("G4")!.frequency(a4: 440), a4: 440).index == 0)
+        #expect(Self.ukulele.nearestString(to: Note("C4")!.frequency(a4: 440), a4: 440).index == 1)
+    }
+
+    /// Only tunings that reach below normal guitar range lower the detector's floor.
+    @Test func detectionFloorFollowsLowestString() {
+        let dropD = Tuning(name: "Drop D", strings: ["D2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! })
+        #expect(Tuning.standard.detectionFloor(a4: 440) == 60)
+        #expect(dropD.detectionFloor(a4: 440) == 60)
+        #expect(Self.ukulele.detectionFloor(a4: 440) == 60)
+        // A minor third below the lowest string.
+        #expect(abs(Self.sevenString.detectionFloor(a4: 440) - Note("G#1")!.frequency(a4: 440)) < 0.01)
+        #expect(abs(Self.eightString.detectionFloor(a4: 440) - Note("D#1")!.frequency(a4: 440)) < 0.01)
+        #expect(abs(Tuning.extendedFloor(a4: 440) - Note("D#1")!.frequency(a4: 440)) < 0.01)
+        // Drop C reaches below drop D, so it does lower the floor.
+        let dropC = Tuning(name: "Drop C", strings: ["C2", "G2", "C3", "F3", "A3", "D4"].map { Note($0)! })
+        #expect(dropC.detectionFloor(a4: 440) < 60)
+    }
+
+    @Test func addingAndRemovingBassStrings() throws {
+        let seven = try #require(Tuning.standard.addingBassString())
+        #expect(seven.strings.map(\.description) == ["B1", "E2", "A2", "D3", "G3", "B3", "E4"])
+        let eight = try #require(seven.addingBassString())
+        #expect(eight.strings.first == Note("F#1"))
+        #expect(eight.addingBassString() == nil)                       // 8 is the maximum
+
+        // Never below the lowest supported note.
+        let low = Tuning(name: "Low", strings: ["G#1", "E2", "A2", "D3"].map { Note($0)! })
+        #expect(low.addingBassString()?.strings.first == Tuning.lowestNote)
+
+        let five = try #require(Tuning.standard.removingBassString())
+        #expect(five.strings.map(\.description) == ["A2", "D3", "G3", "B3", "E4"])
+        let four = try #require(five.removingBassString())
+        #expect(four.removingBassString() == nil)                      // 4 is the minimum
+    }
+
     @Test(arguments: [nil, Accidentals.sharps, Accidentals.flats])
     func roundTripsThroughJSON(accidentals: Accidentals?) throws {
         let custom = Tuning(name: "Mine", strings: ["D2", "A2", "D3", "F#3", "A3", "D4"].map { Note($0)! },
                             accidentals: accidentals)
         let decoded = try JSONDecoder().decode(Tuning.self, from: JSONEncoder().encode(custom))
         #expect(decoded == custom)
+    }
+
+    @Test func otherCountsRoundTripThroughJSON() throws {
+        for tuning in [Self.ukulele, Self.sevenString, Self.eightString] {
+            #expect(try JSONDecoder().decode(Tuning.self, from: JSONEncoder().encode(tuning)) == tuning)
+        }
     }
 }

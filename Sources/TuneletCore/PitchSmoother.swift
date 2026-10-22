@@ -7,10 +7,12 @@
 ///   - a new note starting from silence, or a jump just after an attack, is committed once
 ///     `startConfirmCount` readings agree, so a pluck whose first reading is an octave high
 ///     doesn't flash the wrong note;
-///   - otherwise, once the note has settled (`settleWindow` after it was committed), a jump *up*
-///     to a harmonic (×2…×6) is rejected: that's a harmonic outlasting the fundamental. While the
-///     note is still settling, an octave correction in either direction is allowed, because the
-///     detector can misjudge the octave of an attack both ways;
+///   - otherwise, once the note has settled (`settleWindow` after it was committed), a jump to a
+///     harmonically related note (×2…×6 or ÷2…÷6) is rejected: a note's octave doesn't change
+///     without a new pluck. Up is a harmonic outlasting the fundamental; down is a low resonance
+///     outlasting it (seen on a real A string with the detection floor lowered below 40 Hz). While
+///     the note is still settling, an octave correction in either direction is allowed, because
+///     the detector can misjudge the octave of an attack both ways;
 ///   - any other jump, including *down* to a sub-harmonic, is accepted once it persists for
 ///     `confirmCount` readings. A jump down usually means the current note was itself a harmonic
 ///     (a low string's attack can read an octave high), so it must not need an attack. This
@@ -19,8 +21,8 @@
 ///   longer trusted, including after the note has ended, until the next attack.
 /// - **Hold:** when there's no trusted pitch, the last value stays for `holdDuration` (reported as
 ///   `.held` after a short grace period, so a single dropped reading doesn't flicker). After the
-///   hold, the ended note is remembered until the next attack, so a harmonic that outlives the
-///   hold still isn't shown as a new note.
+///   hold, the ended note is remembered until the next attack, so a harmonic or low resonance
+///   that outlives the hold still isn't shown as a new note.
 public struct PitchSmoother {
     public enum Output: Equatable {
         /// A current, smoothed frequency in Hz.
@@ -75,7 +77,7 @@ public struct PitchSmoother {
         if reading.rms < peak * tailRatio { frequency = nil }
         guard let frequency else { return noPitch(at: time) }
 
-        if lastOutput == nil, let ended = endedNote, frequency > ended, isHarmonic(frequency, of: ended) {
+        if lastOutput == nil, let ended = endedNote, isHarmonic(frequency, of: ended) {
             return .none
         }
 
@@ -86,9 +88,9 @@ public struct PitchSmoother {
                 let inAttack = lastAttack.map { time - $0 <= attackWindow } ?? false
                 if inAttack {
                     needed = startConfirmCount
-                } else if frequency > current, isHarmonic(frequency, of: current),
+                } else if isHarmonic(frequency, of: current),
                           !(noteStart.map { time - $0 <= settleWindow } ?? false) {
-                    // Most likely a harmonic outlasting the fundamental: not a new note.
+                    // A settled note changing octave without a pluck: an artifact, not a new note.
                     return noPitch(at: time)
                 } else {
                     needed = confirmCount

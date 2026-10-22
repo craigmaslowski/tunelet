@@ -242,17 +242,40 @@ private struct TuningDetail: View {
             }
 
             Section("Strings") {
+                LabeledContent("Number of strings") {
+                    HStack(spacing: 6) {
+                        Text("\(tuning.strings.count)").monospacedDigit()
+                        Stepper("Number of strings", value: stringCount, in: Tuning.stringCountRange)
+                            .labelsHidden()
+                    }
+                }
+                .help("Adds or removes a string on the bass side")
+
                 ForEach(tuning.strings.indices, id: \.self) { i in
                     StringNoteField(
-                        number: Tuning.stringCount - i,
+                        number: tuning.strings.count - i,
                         note: $tuning.strings[i],
                         accidentals: tuning.accidentals(default: preferences.accidentals),
                         a4: preferences.a4
                     )
+                    // Fields are identified by position; start fresh when strings are added or
+                    // removed, or each would keep showing its old note.
+                    .id("\(tuning.strings.count)-\(i)")
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The string count; changing it adds or removes strings on the bass side.
+    private var stringCount: Binding<Int> {
+        Binding(
+            get: { tuning.strings.count },
+            set: { count in
+                while tuning.strings.count < count, let more = tuning.addingBassString() { tuning = more }
+                while tuning.strings.count > count, let fewer = tuning.removingBassString() { tuning = fewer }
+            }
+        )
     }
 }
 
@@ -296,11 +319,12 @@ private struct StringNoteField: View {
         .onChange(of: focused) { _, isFocused in if !isFocused { revertIfInvalid() } }
     }
 
+    /// From an 8-string's low F♯1 up to the detector's ceiling.
     private func detectable(_ candidate: Note) -> Bool {
-        YINDetector.defaultRange.contains(candidate.frequency(a4: a4))
+        candidate.midi >= Tuning.lowestNote.midi && candidate.frequency(a4: a4) <= YINDetector.defaultRange.upperBound
     }
 
-    /// Lowest and highest detectable notes at the current A4, e.g. "B1 to D6".
+    /// Lowest and highest allowed notes at the current A4, e.g. "F♯1 to D6".
     private var rangeDescription: String {
         let notes = (0...127).map(Note.init(midi:)).filter(detectable)
         guard let low = notes.first, let high = notes.last else { return "none" }

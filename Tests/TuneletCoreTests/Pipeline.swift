@@ -24,8 +24,9 @@ enum Pipeline {
         }
     }
 
-    static func run(_ signal: [Float], sampleRate: Double) -> [Step] {
-        let detector = YINDetector(sampleRate: sampleRate)
+    static func run(_ signal: [Float], sampleRate: Double,
+                    minimumFrequency: Double = YINDetector.defaultRange.lowerBound) -> [Step] {
+        let detector = YINDetector(sampleRate: sampleRate, minFrequency: minimumFrequency)
         let window = detector.windowSize
         let hop = Int(sampleRate * 0.02)
         var smoother = PitchSmoother()
