@@ -3,8 +3,9 @@ import Foundation
 import Testing
 @testable import TuneletCore
 
-/// Real recordings of each string of two acoustic guitars, in tune according to each guitar's
-/// built-in tuner, captured through a MacBook's built-in mic (see audio-samples/README.md).
+/// Real recordings of each string of three acoustic guitars (two steel-string, one nylon), in tune
+/// according to each guitar's built-in tuner, captured through a MacBook's built-in mic (see
+/// audio-samples/README.md).
 ///
 /// These guard against the regressions synthetic signals missed: the low E's attack reading an
 /// octave high (shown as the D string), and the high e's attack reading an octave low.
@@ -19,7 +20,7 @@ import Testing
     }
 
     /// File-name prefixes, one per guitar.
-    static let guitars = ["martin-gpc-x1e", "hb-clc650-sm-ce"]
+    static let guitars = ["martin-gpc-x1e", "hb-clc650-sm-ce", "cordoba-f7-nylon"]
 
     static let strings = ["E-6th-string", "A-5th-string", "D-4th-string", "G-3rd-string", "B-2nd-string", "E-1st-string"]
 
