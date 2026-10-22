@@ -1,6 +1,14 @@
 # Tunelet
 
-A menu-bar guitar tuner for macOS 26. Guitar and chromatic modes, user-defined 6-string tunings, A4 calibration. The microphone is only on while the tuning popover is open. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
+A menu-bar guitar tuner for macOS 26. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
+
+- **Guitar and chromatic modes.** Guitar mode snaps to the nearest string of the current tuning; chromatic mode shows the nearest note.
+- **Your own tunings.** Standard is built in; add any 6-string tuning, spelled with sharps or flats.
+- **Reference tones.** Click a string to hear its note.
+- **Adjustable.** Set the A4 reference (415–466 Hz) and how close counts as in tune (±1–10¢, default ±2¢).
+- **Private by default.** The microphone is only on while the tuning popover is open, and turns itself off after a period of silence.
+
+Detection is tested against real recordings of every string on three acoustic guitars, steel and nylon.
 
 <p align="center">
   <img src="docs/tunelet-tuning.png" width="380" alt="Tunelet's tuning popover open below its menu-bar icon, in guitar mode with Standard tuning, waiting for a string to be plucked">
