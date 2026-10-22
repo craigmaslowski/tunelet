@@ -53,6 +53,20 @@ import Testing
         }
     }
 
+    /// Regression: a low string's attack through a laptop mic read an octave high (E2 shown as E3,
+    /// which guitar mode then snapped to the D string).
+    @Test(arguments: ["C2", "D2", "E2", "F2", "A2"])
+    func lowStringAttackReadsFundamental(name: String) throws {
+        let detector = YINDetector(sampleRate: 48_000)
+        let f = Note(name)!.frequency(a4: 440)
+        for noise in [0.0, 0.02] {
+            let signal = SyntheticSignal.pluck(frequency: f, sampleRate: 48_000, count: detector.windowSize,
+                                               harmonics: SyntheticSignal.lowEAttack, noise: noise)
+            let estimate = try #require(detector.detect(signal))
+            #expect(abs(Pitch.cents(estimate.frequency, from: f)) < 0.5, "\(name) read as \(estimate.frequency) Hz")
+        }
+    }
+
     @Test func pureSineIsExact() {
         let detector = YINDetector(sampleRate: 48_000)
         let signal = SyntheticSignal.pluck(frequency: 110, sampleRate: 48_000, count: detector.windowSize,

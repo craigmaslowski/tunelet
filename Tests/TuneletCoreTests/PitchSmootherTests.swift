@@ -51,9 +51,38 @@ import Testing
         var s = PitchSmoother()
         var t = 0.0
         steady(&s, 110, count: 10, level: 0.02, t: &t)
-        // A fresh pluck: level jumps well over +6 dB.
-        let out = s.update(reading(110 * ratio, level: 0.2), at: t)
-        #expect(out == .pitch(110 * ratio))
+        // A fresh pluck: level jumps well over +6 dB. Shown once three readings agree.
+        _ = s.update(reading(110 * ratio, level: 0.2), at: t)
+        _ = s.update(reading(110 * ratio, level: 0.2), at: t + dt)
+        #expect(s.update(reading(110 * ratio, level: 0.2), at: t + 2 * dt) == .pitch(110 * ratio))
+    }
+
+    /// Regression: the attack read an octave high, then the true fundamental arrived without a new
+    /// attack and was rejected as a "harmonic", so the wrong note stuck.
+    @Test func dropToSubharmonicWithoutAttackIsAccepted() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, 164.8, count: 10, level: 0.05, t: &t)
+        for _ in 0..<4 {
+            #expect(frequency(s.update(reading(82.4, level: 0.04), at: t)) == 164.8)
+            t += dt
+        }
+        #expect(s.update(reading(82.4, level: 0.04), at: t) == .pitch(82.4))
+    }
+
+    /// Regression: the first readings of a low-string pluck can be an octave high. They must not be
+    /// shown, even for one frame, when the following readings disagree.
+    @Test func octaveHighFirstReadingIsNotShown() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, nil, count: 5, level: 0.0005, t: &t)                        // silence
+        #expect(s.update(reading(164.8, level: 0.05), at: t) == PitchSmoother.Output.none)
+        t += dt
+        #expect(s.update(reading(82.4, level: 0.06), at: t) == PitchSmoother.Output.none)
+        t += dt
+        #expect(s.update(reading(82.4, level: 0.06), at: t) == PitchSmoother.Output.none)
+        t += dt
+        #expect(s.update(reading(82.4, level: 0.06), at: t) == .pitch(82.4))
     }
 
     @Test func unrelatedNoteWithoutAttackNeedsToPersist() {
@@ -88,13 +117,17 @@ import Testing
 
     @Test func holdsThenClears() {
         var s = PitchSmoother()
-        _ = s.update(reading(196), at: 0)
+        _ = s.update(reading(196), at: -0.04)
+        _ = s.update(reading(196), at: -0.02)
+        #expect(s.update(reading(196), at: 0) == .pitch(196))
         #expect(s.update(reading(nil), at: 0.05) == .pitch(196))   // within dropout grace
         #expect(s.update(reading(nil), at: 0.5) == .held(196))
         #expect(s.update(reading(nil), at: 1.5) == .held(196))
         #expect(s.update(reading(nil), at: 1.6) == PitchSmoother.Output.none)
-        // After clearing, any new pitch starts fresh.
-        #expect(s.update(reading(247), at: 1.7) == .pitch(247))
+        // After clearing, a new pitch starts fresh once three readings agree.
+        #expect(s.update(reading(247), at: 1.70) == PitchSmoother.Output.none)
+        #expect(s.update(reading(247), at: 1.72) == PitchSmoother.Output.none)
+        #expect(s.update(reading(247), at: 1.74) == .pitch(247))
     }
 
     @Test func tracksSlowTuningSweep() {
@@ -103,6 +136,8 @@ import Testing
         var f = 100.0
         var t = 0.0
         var last = 0.0
+        _ = s.update(reading(f), at: t - 2 * dt)   // the first readings only confirm the note
+        _ = s.update(reading(f), at: t - dt)
         for _ in 0..<200 {
             guard case .pitch(let out) = s.update(reading(f), at: t) else { Issue.record("lost pitch"); return }
             #expect(out >= last)
@@ -146,6 +181,46 @@ import Testing
     }
 }
 
+extension PitchSmootherTests {
+    /// The real low-E sequence end to end: an attack dominated by the 2nd harmonic that settles into
+    /// the sustain spectrum, through the detector at the analyzer's 20 ms cadence. Guitar mode must
+    /// show the low E string, never D3 (where an E3 misreading snaps).
+    @Test(arguments: ["E2", "D2"])
+    func lowStringPluckShowsLowString(name: String) {
+        let sampleRate = 48_000.0
+        let f = Note(name)!.frequency(a4: 440)
+        let detector = YINDetector(sampleRate: sampleRate)
+        let window = detector.windowSize
+        let attack = SyntheticSignal.lowEAttack, sustain = SyntheticSignal.lowESustain
+        let n = Int(sampleRate * 4)
+        let signal: [Float] = (0..<n).map { i in
+            let t = Double(i) / sampleRate
+            let blend = min(1, max(0, (t - 0.3) / 0.4))          // attack → sustain between 0.3 s and 0.7 s
+            var s = 0.0
+            for h in 0..<attack.count {
+                let amp = attack[h] * (1 - blend) + sustain[h] * blend
+                s += amp * sin(2 * .pi * f * Double(h + 1) * t + Double(h))
+            }
+            return Float(0.15 * exp(-t * 0.8) * s)
+        }
+        var smoother = PitchSmoother()
+        var shown = Set<String>()
+        var end = window
+        while end <= n {
+            let slice = Array(signal[(end - window)..<end])
+            var rms: Float = 0
+            vDSP_rmsqv(slice, 1, &rms, vDSP_Length(window))
+            let estimate = rms >= PitchAnalyzer.defaultSilenceRMS ? detector.detect(slice) : nil
+            if let out = frequency(smoother.update(PitchReading(estimate: estimate, rms: rms), at: Double(end) / sampleRate)) {
+                let target = TunerMode.guitar.target(for: out, tuning: .standard, a4: 440)
+                shown.insert(Pitch.nearestNote(to: out, a4: 440).note.description + "/string \(Tuning.stringCount - target.string!)")
+            }
+            end += Int(sampleRate * 0.02)
+        }
+        #expect(shown == ["\(name)/string 6"], "displayed \(shown.sorted())")
+    }
+}
+
 @Suite struct TunerModeTests {
     @Test func guitarModeTargetsNearestString() {
         let a3 = Note("A3")!.frequency(a4: 440)
@@ -172,6 +247,8 @@ extension PitchSmootherTests {
         steady(&s, nil, count: 100, level: 0.01, t: &t)          // hold runs out
         #expect(steady(&s, 164.8, count: 20, level: 0.01, t: &t) == PitchSmoother.Output.none)
         // A real pluck of the higher string is still accepted.
-        #expect(s.update(reading(164.8, level: 0.2), at: t) == .pitch(164.8))
+        _ = s.update(reading(164.8, level: 0.2), at: t)
+        _ = s.update(reading(164.8, level: 0.2), at: t + dt)
+        #expect(s.update(reading(164.8, level: 0.2), at: t + 2 * dt) == .pitch(164.8))
     }
 }

@@ -6,6 +6,14 @@ enum SyntheticSignal {
     /// 2nd and 3rd harmonics. This is the case that causes octave errors.
     static let weakFundamental: [Double] = [0.35, 1.0, 0.8, 0.5, 0.35, 0.2, 0.12, 0.08]
 
+    /// Measured from a real low-E pluck recorded through a MacBook's built-in mic (harmonic
+    /// amplitudes relative to the strongest). In the first ~0.4 s the 2nd harmonic dominates and
+    /// the odd harmonics are nearly absent, so the waveform repeats almost perfectly at half the
+    /// period. Plain YIN reads this an octave high.
+    static let lowEAttack: [Double] = [0.14, 1.0, 0.10, 0.02, 0.02, 0.08, 0.02]
+    /// The same pluck ~1.5 s later: the fundamental has caught up with the 2nd harmonic.
+    static let lowESustain: [Double] = [0.92, 1.0, 0.15, 0.03, 0.12, 0.49, 0.05]
+
     static func pluck(
         frequency: Double,
         sampleRate: Double,

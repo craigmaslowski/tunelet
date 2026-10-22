@@ -4,9 +4,14 @@
 /// - **Note changes need evidence.** A real new note arrives with an attack (a jump in level).
 ///   As a string fades, its fundamental can sink below the noise before its 2nd or 3rd harmonic
 ///   does, and the detector then reports the harmonic. So:
-///   - a jump to a harmonically related note (×2…×6 or ÷2…÷6) is accepted only just after an attack;
-///   - a jump to an unrelated note is accepted once it persists for `unrelatedConfirmCount`
-///     readings, so a second string plucked over a ringing first one still comes through.
+///   - a new note starting from silence, or a jump just after an attack, is committed once
+///     `startConfirmCount` readings agree, so a pluck whose first reading is an octave high
+///     doesn't flash the wrong note;
+///   - otherwise a jump *up* to a harmonic (×2…×6) is rejected;
+///   - any other jump, including *down* to a sub-harmonic, is accepted once it persists for
+///     `confirmCount` readings. A jump down usually means the current note was itself a harmonic
+///     (a low string's attack can read an octave high), so it must not need an attack. This
+///     also lets a second string plucked over a ringing first one come through.
 /// - **Tail cutoff:** once the level falls `tailRatio` below the note's peak, readings are no
 ///   longer trusted, including after the note has ended, until the next attack.
 /// - **Hold:** when there's no trusted pitch, the last value stays for `holdDuration` (reported as
@@ -35,7 +40,8 @@ public struct PitchSmoother {
     public var attackWindow = 0.15
     /// Readings below this fraction of the note's peak level are not trusted (0.0316 = -30 dB).
     public var tailRatio: Float = 0.0316
-    public var unrelatedConfirmCount = 5
+    public var confirmCount = 5
+    public var startConfirmCount = 3
     /// How close (in cents) a frequency ratio must be to a whole number to count as harmonic.
     /// 50¢ means "rounds to the same note an octave (twelfth, …) away"; harmonics read near the
     /// noise floor drift by tens of cents.
@@ -63,27 +69,37 @@ public struct PitchSmoother {
         if reading.rms < peak * tailRatio { frequency = nil }
         guard let frequency else { return noPitch(at: time) }
 
-        if lastOutput == nil, let ended = endedNote, isHarmonic(frequency, of: ended) {
+        if lastOutput == nil, let ended = endedNote, frequency > ended, isHarmonic(frequency, of: ended) {
             return .none
         }
 
-        if let current = lastOutput, abs(Pitch.cents(frequency, from: current)) > jumpCents {
-            let inAttack = lastAttack.map { time - $0 <= attackWindow } ?? false
-            if inAttack {
-                startNote()
-            } else if isHarmonic(frequency, of: current) {
-                // Most likely a harmonic outlasting the fundamental: not a new note.
-                return noPitch(at: time)
-            } else {
-                if let c = candidate, abs(Pitch.cents(frequency, from: c)) <= jumpCents / 2 {
-                    candidateCount += 1
+        // How many agreeing readings a new note needs before it's shown (0: not a new note).
+        var needed = 0
+        if let current = lastOutput {
+            if abs(Pitch.cents(frequency, from: current)) > jumpCents {
+                let inAttack = lastAttack.map { time - $0 <= attackWindow } ?? false
+                if inAttack {
+                    needed = startConfirmCount
+                } else if frequency > current, isHarmonic(frequency, of: current) {
+                    // Most likely a harmonic outlasting the fundamental: not a new note.
+                    return noPitch(at: time)
                 } else {
-                    candidate = frequency
-                    candidateCount = 1
+                    needed = confirmCount
                 }
-                guard candidateCount >= unrelatedConfirmCount else { return noPitch(at: time) }
-                startNote()
             }
+        } else {
+            needed = startConfirmCount
+        }
+
+        if needed > 0 {
+            if let c = candidate, abs(Pitch.cents(frequency, from: c)) <= jumpCents / 2 {
+                candidateCount += 1
+            } else {
+                candidate = frequency
+                candidateCount = 1
+            }
+            guard candidateCount >= needed else { return noPitch(at: time) }
+            startNote()
         } else {
             candidate = nil
             candidateCount = 0

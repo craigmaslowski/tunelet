@@ -8,4 +8,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 plugins="$(dirname "$(xcrun -f swift)")/../lib/swift/host/plugins/testing"
-exec swift test -Xswiftc -plugin-path -Xswiftc "$plugins" "$@"
+# --no-parallel: the analyzer timing test needs CPU time; running alongside the (unoptimised)
+# full-pipeline detector tests starves its timer and makes it flaky.
+exec swift test --no-parallel -Xswiftc -plugin-path -Xswiftc "$plugins" "$@"
