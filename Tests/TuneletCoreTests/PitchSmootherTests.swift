@@ -1,4 +1,4 @@
-import Accelerate
+import Foundation
 import Testing
 @testable import TuneletCore
 
@@ -181,25 +181,10 @@ import Testing
         let sampleRate = 48_000.0
         let e2 = Note("E2")!.frequency(a4: 440)
         let signal = SyntheticSignal.decayingPluck(frequency: e2, sampleRate: sampleRate, duration: 10)
-        let detector = YINDetector(sampleRate: sampleRate)
-        let window = detector.windowSize
-        let hop = Int(sampleRate * 0.02)
+        let steps = Pipeline.run(signal, sampleRate: sampleRate)
 
-        var smoother = PitchSmoother()
-        var rawSawHarmonic = false
-        var shownNotes = Set<String>()
-        var end = window
-        while end <= signal.count {
-            let slice = Array(signal[(end - window)..<end])
-            var rms: Float = 0
-            vDSP_rmsqv(slice, 1, &rms, vDSP_Length(window))
-            let estimate = rms >= PitchAnalyzer.defaultSilenceRMS ? detector.detect(slice) : nil
-            if let f = estimate?.frequency, abs(Pitch.cents(f, from: 2 * e2)) < 50 { rawSawHarmonic = true }
-
-            let output = smoother.update(PitchReading(estimate: estimate, rms: rms), at: Double(end) / sampleRate)
-            if let f = frequency(output) { shownNotes.insert(Pitch.nearestNote(to: f, a4: 440).note.description) }
-            end += hop
-        }
+        let rawSawHarmonic = steps.contains { $0.estimate.map { abs(Pitch.cents($0.frequency, from: 2 * e2)) < 50 } ?? false }
+        let shownNotes = Set(steps.compactMap(\.shown).map { Pitch.nearestNote(to: $0, a4: 440).note.description })
 
         // The signal must actually trigger the problem, or this test proves nothing.
         #expect(rawSawHarmonic, "synthetic decay no longer makes the detector read the 2nd harmonic")
@@ -215,8 +200,6 @@ extension PitchSmootherTests {
     func lowStringPluckShowsLowString(name: String) {
         let sampleRate = 48_000.0
         let f = Note(name)!.frequency(a4: 440)
-        let detector = YINDetector(sampleRate: sampleRate)
-        let window = detector.windowSize
         let attack = SyntheticSignal.lowEAttack, sustain = SyntheticSignal.lowESustain
         let n = Int(sampleRate * 4)
         let signal: [Float] = (0..<n).map { i in
@@ -229,20 +212,10 @@ extension PitchSmootherTests {
             }
             return Float(0.15 * exp(-t * 0.8) * s)
         }
-        var smoother = PitchSmoother()
-        var shown = Set<String>()
-        var end = window
-        while end <= n {
-            let slice = Array(signal[(end - window)..<end])
-            var rms: Float = 0
-            vDSP_rmsqv(slice, 1, &rms, vDSP_Length(window))
-            let estimate = rms >= PitchAnalyzer.defaultSilenceRMS ? detector.detect(slice) : nil
-            if let out = frequency(smoother.update(PitchReading(estimate: estimate, rms: rms), at: Double(end) / sampleRate)) {
-                let target = TunerMode.guitar.target(for: out, tuning: .standard, a4: 440)
-                shown.insert(Pitch.nearestNote(to: out, a4: 440).note.description + "/string \(Tuning.stringCount - target.string!)")
-            }
-            end += Int(sampleRate * 0.02)
-        }
+        let shown = Set(Pipeline.run(signal, sampleRate: sampleRate).compactMap(\.shown).map { out in
+            let target = TunerMode.guitar.target(for: out, tuning: .standard, a4: 440)
+            return Pitch.nearestNote(to: out, a4: 440).note.description + "/string \(Tuning.stringCount - target.string!)"
+        })
         #expect(shown == ["\(name)/string 6"], "displayed \(shown.sorted())")
     }
 }
