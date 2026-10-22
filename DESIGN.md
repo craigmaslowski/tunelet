@@ -29,13 +29,14 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Tuning screen (popover):**
   - Large note name and cents offset
   - Measured frequency in Hz
-  - Needle gauge covering ±50 cents (pegged beyond), with an in-tune zone of **±2¢**. Colours: green within ±2¢, yellow within ±10¢, orange beyond.
+  - Needle gauge covering ±50 cents (pegged beyond), with an in-tune zone that defaults to **±2¢** and can be set from ±1¢ to ±10¢ in Settings. Colours: green within the in-tune range, yellow out to ±10¢ (or the range, if wider), orange beyond.
   - In guitar mode, the 6 strings with the current one highlighted
   - Guitar/chromatic switch, tuning picker, current A4 value
 - **Settings window** (two tabs):
   - **General:**
     - A4 calibration: 415–466 Hz, typed or stepped, with a reset to 440
     - Global sharps/flats
+    - In-tune range: ±1¢ to ±10¢, default ±2¢. Many guitars' built-in tuners call a wider window "in tune".
     - Auto-stop timeout: 30 s to 10 min
     - Launch at login (`SMAppService`; the system is the source of truth, not a stored flag)
   - **Tunings:**

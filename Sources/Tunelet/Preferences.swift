@@ -8,6 +8,7 @@ import TuneletCore
 final class Preferences {
     static let a4Range: ClosedRange<Double> = 415...466
     static let autoStopRange: ClosedRange<TimeInterval> = 30...600
+    static let inTuneRange: ClosedRange<Double> = 1...10
 
     var mode: TunerMode {
         didSet { defaults.set(mode.rawValue, forKey: Keys.mode) }
@@ -36,6 +37,11 @@ final class Preferences {
         didSet { defaults.set(selectedTuningID.uuidString, forKey: Keys.selectedTuning) }
     }
 
+    /// Offsets within ± this many cents count as in tune.
+    var inTuneCents: Double {
+        didSet { defaults.set(inTuneCents, forKey: Keys.inTuneCents) }
+    }
+
     /// Stop listening after this long without a detected pitch.
     var autoStopSeconds: TimeInterval {
         didSet { defaults.set(autoStopSeconds, forKey: Keys.autoStopSeconds) }
@@ -59,6 +65,7 @@ final class Preferences {
         static let tunings = "tunings"
         static let selectedTuning = "selectedTuning"
         static let autoStopSeconds = "autoStopSeconds"
+        static let inTuneCents = "inTuneCents"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -78,6 +85,9 @@ final class Preferences {
 
         let storedID = defaults.string(forKey: Keys.selectedTuning).flatMap(UUID.init(uuidString:))
         selectedTuningID = loadedTunings.first { $0.id == storedID }?.id ?? loadedTunings[0].id
+
+        let storedInTune = defaults.double(forKey: Keys.inTuneCents)
+        inTuneCents = Self.inTuneRange.contains(storedInTune) ? storedInTune : 2
 
         let storedTimeout = defaults.double(forKey: Keys.autoStopSeconds)
         autoStopSeconds = Self.autoStopRange.contains(storedTimeout) ? storedTimeout : 120

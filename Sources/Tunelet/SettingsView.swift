@@ -56,8 +56,19 @@ private struct GeneralSettings: View {
                     Text("Sharps (C♯, F♯)").tag(Accidentals.sharps)
                     Text("Flats (D♭, G♭)").tag(Accidentals.flats)
                 }
+
+                LabeledContent("In tune within") {
+                    HStack(spacing: 6) {
+                        Text("±\(Int(preferences.inTuneCents))¢").monospacedDigit()
+                        Stepper("In tune within", value: $preferences.inTuneCents,
+                                in: Preferences.inTuneRange, step: 1)
+                            .labelsHidden()
+                        Button("Reset") { preferences.inTuneCents = 2 }
+                            .disabled(preferences.inTuneCents == 2)
+                    }
+                }
             } footer: {
-                Text("Tunings can override the note-name setting in the Tunings tab.")
+                Text("Tunings can override the note-name setting in the Tunings tab. Offsets inside the in-tune range show green.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

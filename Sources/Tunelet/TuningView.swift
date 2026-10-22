@@ -2,9 +2,6 @@ import AppKit
 import SwiftUI
 import TuneletCore
 
-/// Offsets within this many cents count as in tune.
-let inTuneCents = 2.0
-
 /// Contents of the tuning popover.
 struct TuningView: View {
     let session: TuningSession
@@ -73,8 +70,9 @@ private struct TunerReadout: View {
         case .none: (nil, false)
         }
         let target = frequency.map { preferences.mode.target(for: $0, tuning: tuning, a4: preferences.a4) }
+        let inTuneCents = preferences.inTuneCents
         let inTune = target.map { abs($0.cents) <= inTuneCents } ?? false
-        let color = target.map { centsColor($0.cents) } ?? Color.secondary
+        let color = target.map { centsColor($0.cents, inTuneCents: inTuneCents) } ?? Color.secondary
 
         VStack(spacing: 10) {
             // Note name with a smaller octave number.
@@ -98,7 +96,7 @@ private struct TunerReadout: View {
             }
             .font(.title3.monospacedDigit())
 
-            GaugeView(cents: target?.cents ?? 0, active: target != nil, color: color)
+            GaugeView(cents: target?.cents ?? 0, active: target != nil, color: color, inTuneCents: inTuneCents)
                 .frame(height: 110)
 
             if preferences.mode == .guitar {
@@ -119,12 +117,12 @@ private struct TunerReadout: View {
     }
 }
 
-func centsColor(_ cents: Double) -> Color {
-    switch abs(cents) {
-    case ...inTuneCents: .green
-    case ...10: .yellow
-    default: .orange
-    }
+/// Green inside the in-tune range, yellow out to 10¢ (or the range, if wider), orange beyond.
+func centsColor(_ cents: Double, inTuneCents: Double) -> Color {
+    let offset = abs(cents)
+    if offset <= inTuneCents { return .green }
+    if offset <= max(10, inTuneCents) { return .yellow }
+    return .orange
 }
 
 // MARK: - Gauge
@@ -133,6 +131,8 @@ struct GaugeView: View {
     var cents: Double
     var active: Bool
     var color: Color
+    /// Half-width of the green band.
+    var inTuneCents: Double
 
     private static let range = 50.0       // ± cents shown
     private static let sweep = 55.0       // ± degrees from vertical
