@@ -39,7 +39,8 @@ struct TuningView: View {
                     Label(message, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 case .listening:
-                    TunerReadout(pitch: session.pitch, preferences: preferences)
+                    TunerReadout(pitch: session.pitch, reference: session.referenceString, preferences: preferences,
+                                 playReference: preferences.referenceTones ? { session.playReference(string: $0) } : nil)
                 }
             }
             // Top-aligned so the gauge stays put when the strings row comes and goes with the mode.
@@ -59,9 +60,21 @@ struct TuningView: View {
 
 private struct TunerReadout: View {
     let pitch: PitchSmoother.Output
+    /// The string whose reference tone is playing.
+    let reference: Int?
     let preferences: Preferences
+    /// Set when reference tones are on: called with a string index when its circle is clicked.
+    let playReference: ((Int) -> Void)?
 
     var body: some View {
+        if let reference {
+            ReferenceReadout(string: reference, preferences: preferences, playReference: playReference)
+        } else {
+            readout
+        }
+    }
+
+    @ViewBuilder private var readout: some View {
         let tuning = preferences.selectedTuning
         let accidentals = preferences.effectiveAccidentals
         let (frequency, held): (Double?, Bool) = switch pitch {
@@ -101,7 +114,7 @@ private struct TunerReadout: View {
 
             if preferences.mode == .guitar {
                 StringsRow(tuning: tuning, accidentals: accidentals,
-                           active: target?.string, inTune: inTune)
+                           active: target?.string, inTune: inTune, onTap: playReference)
             }
         }
         // A held reading is the last value after the string went quiet: still readable, clearly stale.
@@ -114,6 +127,43 @@ private struct TunerReadout: View {
         if rounded == 0 { return "0.0¢" }
         // Typographic minus (U+2212) rather than a hyphen.
         return (rounded > 0 ? "+" : "\u{2212}") + String(format: "%.1f¢", abs(rounded))
+    }
+}
+
+/// Shown while a reference tone plays. The tuner isn't listening, so the gauge rests.
+private struct ReferenceReadout: View {
+    let string: Int
+    let preferences: Preferences
+    let playReference: ((Int) -> Void)?
+
+    var body: some View {
+        let tuning = preferences.selectedTuning
+        let accidentals = preferences.effectiveAccidentals
+        let note = tuning.strings[string]
+
+        VStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(note.name(accidentals))
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                Text("\(note.octave)")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Color.accentColor)
+            .frame(height: 76)
+
+            HStack(spacing: 18) {
+                Label("Reference tone", systemImage: "speaker.wave.2.fill")
+                Text(String(format: "%.2f Hz", note.frequency(a4: preferences.a4)))
+            }
+            .font(.title3.monospacedDigit())
+            .foregroundStyle(.secondary)
+
+            GaugeView(cents: 0, active: false, color: .secondary, inTuneCents: preferences.inTuneCents)
+                .frame(height: 110)
+
+            StringsRow(tuning: tuning, accidentals: accidentals, active: string, inTune: false, onTap: playReference)
+        }
     }
 }
 
@@ -215,30 +265,42 @@ private struct StringsRow: View {
     let accidentals: Accidentals
     let active: Int?
     let inTune: Bool
+    /// When set, each string is a button that plays its reference tone.
+    var onTap: ((Int) -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 8) {
             ForEach(tuning.strings.indices, id: \.self) { i in
-                let isActive = i == active
-                VStack(spacing: 3) {
-                    Circle()
-                        .fill(isActive ? (inTune ? Color.green : Color.accentColor) : Color.secondary.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(tuning.strings[i].name(accidentals))
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundStyle(isActive ? Color.white : Color.primary)
-                        )
-                    Text("\(Tuning.stringCount - i)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                if let onTap {
+                    Button { onTap(i) } label: { circle(i) }
+                        .buttonStyle(.plain)
+                        .help("Play \(tuning.strings[i].label(accidentals))")
+                } else {
+                    circle(i)
                 }
-                .accessibilityElement()
-                .accessibilityLabel("String \(Tuning.stringCount - i), \(tuning.strings[i].label(accidentals))")
             }
         }
         .animation(.easeOut(duration: 0.12), value: active)
         .animation(.easeOut(duration: 0.12), value: inTune)
+    }
+
+    private func circle(_ i: Int) -> some View {
+        let isActive = i == active
+        return VStack(spacing: 3) {
+            Circle()
+                .fill(isActive ? (inTune ? Color.green : Color.accentColor) : Color.secondary.opacity(0.15))
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Text(tuning.strings[i].name(accidentals))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(isActive ? Color.white : Color.primary)
+                )
+            Text("\(Tuning.stringCount - i)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement()
+        .accessibilityLabel("String \(Tuning.stringCount - i), \(tuning.strings[i].label(accidentals))")
     }
 }
 

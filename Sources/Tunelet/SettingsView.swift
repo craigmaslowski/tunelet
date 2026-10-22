@@ -14,7 +14,7 @@ struct SettingsView: View {
                 .tabItem { Label("Tunings", systemImage: "tuningfork") }
         }
         .padding(12)
-        .frame(width: 580, height: 460)
+        .frame(width: 580, height: 580)
     }
 }
 
@@ -69,6 +69,13 @@ private struct GeneralSettings: View {
                 }
             } footer: {
                 Text("Tunings can override the note-name setting in the Tunings tab. Offsets inside the in-tune range show green.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Reference tones", isOn: $preferences.referenceTones)
+                Text("Click a string in the tuner to hear its note. The tuner ignores the microphone while the tone plays.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

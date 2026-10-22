@@ -42,6 +42,11 @@ final class Preferences {
         didSet { defaults.set(inTuneCents, forKey: Keys.inTuneCents) }
     }
 
+    /// Clicking a string in the tuner plays its note.
+    var referenceTones: Bool {
+        didSet { defaults.set(referenceTones, forKey: Keys.referenceTones) }
+    }
+
     /// Stop listening after this long without a detected pitch.
     var autoStopSeconds: TimeInterval {
         didSet { defaults.set(autoStopSeconds, forKey: Keys.autoStopSeconds) }
@@ -66,6 +71,7 @@ final class Preferences {
         static let selectedTuning = "selectedTuning"
         static let autoStopSeconds = "autoStopSeconds"
         static let inTuneCents = "inTuneCents"
+        static let referenceTones = "referenceTones"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -88,6 +94,8 @@ final class Preferences {
 
         let storedInTune = defaults.double(forKey: Keys.inTuneCents)
         inTuneCents = Self.inTuneRange.contains(storedInTune) ? storedInTune : 2
+
+        referenceTones = defaults.object(forKey: Keys.referenceTones) as? Bool ?? true
 
         let storedTimeout = defaults.double(forKey: Keys.autoStopSeconds)
         autoStopSeconds = Self.autoStopRange.contains(storedTimeout) ? storedTimeout : 120

@@ -20,6 +20,8 @@ final class TuningSession {
     }
     /// The smoothed pitch to display while listening.
     private(set) var pitch: PitchSmoother.Output = .none
+    /// The string whose reference tone is playing, if any.
+    private(set) var referenceString: Int?
 
     /// Called when the microphone goes live or stops.
     @ObservationIgnored var onLiveChange: ((Bool) -> Void)?
@@ -31,9 +33,16 @@ final class TuningSession {
     @ObservationIgnored private var lastPitchTime = Date()
     @ObservationIgnored private var idleCheck: Timer?
     @ObservationIgnored private var smoother = PitchSmoother()
+    @ObservationIgnored private let tonePlayer = ReferenceTonePlayer()
+    /// Readings before this time (system uptime) are ignored: the mic hears the reference tone.
+    @ObservationIgnored private var ignoreReadingsUntil: TimeInterval = 0
+
+    /// How long the mic is ignored after a reference tone ends, for the room's echo to die away.
+    private static let toneEchoTime: TimeInterval = 0.3
 
     init(preferences: Preferences) {
         self.preferences = preferences
+        tonePlayer.onFinish = { [weak self] in self?.referenceFinished() }
     }
 
     var isActive: Bool { state != .idle }
@@ -56,7 +65,25 @@ final class TuningSession {
         }
     }
 
+    /// Plays a string's note. The tuner ignores the microphone while it plays.
+    func playReference(string index: Int) {
+        guard state == .listening, preferences.referenceTones else { return }
+        let tuning = preferences.selectedTuning
+        guard tuning.strings.indices.contains(index) else { return }
+        do {
+            try tonePlayer.play(frequency: tuning.strings[index].frequency(a4: preferences.a4))
+        } catch {
+            return
+        }
+        referenceString = index
+        ignoreReadingsUntil = .infinity
+        smoother.reset()
+        pitch = .none
+    }
+
     func stop() {
+        tonePlayer.stop()
+        referenceString = nil
         idleCheck?.invalidate()
         idleCheck = nil
         capture.stop()
@@ -84,9 +111,18 @@ final class TuningSession {
         }
     }
 
+    private func referenceFinished() {
+        referenceString = nil
+        ignoreReadingsUntil = ProcessInfo.processInfo.systemUptime + Self.toneEchoTime
+        smoother.reset()
+    }
+
     private func handle(_ reading: PitchReading) {
-        guard state == .listening else { return }
-        let output = smoother.update(reading, at: ProcessInfo.processInfo.systemUptime)
+        let now = ProcessInfo.processInfo.systemUptime
+        // While a reference tone plays (and its echo dies away), the mic is hearing the tone, not
+        // the guitar: don't display it, and don't count it as activity for auto-stop.
+        guard state == .listening, now >= ignoreReadingsUntil else { return }
+        let output = smoother.update(reading, at: now)
         // Avoid invalidating the view when nothing changed (e.g. a long silence).
         if output != pitch { pitch = output }
         if reading.estimate != nil { lastPitchTime = Date() }

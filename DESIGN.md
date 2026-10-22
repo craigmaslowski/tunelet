@@ -9,7 +9,10 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 - **Tunings are user-configured.** The only built-in one is Standard (E2 A2 D3 G3 B3 E4). Every tuning has exactly 6 strings.
 - **A4 calibration** is a reference pitch setting that defaults to 440 Hz.
 - **Sharps or flats** is a global preference (default: sharps). Each tuning can override it or follow the global setting. Chromatic mode uses the selected tuning's effective spelling, so note names don't change when you switch modes while tuning the same guitar.
-- **Reference tones** are a nice-to-have that may slip from v1.
+- **Reference tones:** in guitar mode, clicking a string's circle in the tuner plays that string's note (current tuning and A4) as a 2 s pluck. Settings has an on/off toggle, on by default.
+  - **Sound:** additive synthesis (a fundamental plus 5 decaying harmonics) so the pitch is exact; verified within 0.1¢ by Tunelet's own detector. The harmonics carry the pitch on laptop speakers, which barely reproduce a low E's fundamental. It has 5 ms and 50 ms fades so it doesn't click, peaks at −6 dBFS, and plays on its own output engine.
+  - **The mic is ignored** while a tone plays and for 0.3 s after, while its echo dies away. Otherwise the tuner would show the tone instead of the guitar, and the tone would keep resetting auto-stop. Meanwhile the readout shows "Reference tone" and the gauge rests.
+  - Chromatic mode has no strings row, so it has no reference tones.
 
 ### Explicitly out of scope
 
@@ -37,6 +40,7 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
     - A4 calibration: 415–466 Hz, typed or stepped, with a reset to 440
     - Global sharps/flats
     - In-tune range: ±1¢ to ±10¢, default ±2¢. Many guitars' built-in tuners call a wider window "in tune".
+    - Reference tones on/off (default on)
     - Auto-stop timeout: 30 s to 10 min
     - Launch at login (`SMAppService`; the system is the source of truth, not a stored flag)
   - **Tunings:**
