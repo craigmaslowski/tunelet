@@ -1,8 +1,8 @@
 # Tunelet
 
-A menu-bar guitar tuner for macOS 26. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
+A menu-bar tuner for guitar and ukulele on macOS 26. See [DESIGN.md](DESIGN.md) for the design and the reasoning behind it.
 
-- **Guitar and chromatic modes.** Guitar mode snaps to the nearest string of the current tuning; chromatic mode shows the nearest note.
+- **Guitar and chromatic modes.** Guitar mode snaps to the nearest string of the current tuning; chromatic mode shows the nearest note, with an optional low-notes switch for 7- and 8-string guitars.
 - **Tunings.** Standard 6-, 7- and 8-string guitar and standard ukulele are built in. Add your own of 4 to 8 strings, spelled with sharps or flats.
 - **Reference tones.** Click a string to hear its note.
 - **Adjustable.** Set the A4 reference (415–466 Hz) and how close counts as in tune (±1–10¢, default ±2¢).
