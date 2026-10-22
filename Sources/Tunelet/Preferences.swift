@@ -73,6 +73,7 @@ final class Preferences {
         static let a4 = "a4"
         static let accidentals = "accidentals"
         static let tunings = "tunings"
+        static let offeredPresets = "offeredPresets"
         static let selectedTuning = "selectedTuning"
         static let autoStopSeconds = "autoStopSeconds"
         static let inTuneCents = "inTuneCents"
@@ -93,7 +94,15 @@ final class Preferences {
         let storedTunings = (defaults.data(forKey: Keys.tunings)
             .flatMap { try? JSONDecoder().decode([Tuning].self, from: $0) } ?? [])
             .filter { Tuning.stringCountRange.contains($0.strings.count) }
-        let loadedTunings = storedTunings.isEmpty ? [Tuning.standard] : storedTunings
+        let offered = Set((defaults.stringArray(forKey: Keys.offeredPresets) ?? []).compactMap(UUID.init(uuidString:)))
+        let withPresets = Tuning.addingNewPresets(to: storedTunings, offered: offered)
+        // didSet doesn't run during init, so save the merged list here; recording presets as
+        // offered without saving them would lose them for good on the next launch.
+        if withPresets.tunings != storedTunings, let data = try? JSONEncoder().encode(withPresets.tunings) {
+            defaults.set(data, forKey: Keys.tunings)
+        }
+        defaults.set(withPresets.offered.map(\.uuidString), forKey: Keys.offeredPresets)
+        let loadedTunings = withPresets.tunings.isEmpty ? [Tuning.standard] : withPresets.tunings
         tunings = loadedTunings
 
         let storedID = defaults.string(forKey: Keys.selectedTuning).flatMap(UUID.init(uuidString:))

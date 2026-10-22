@@ -6,7 +6,8 @@ A menu-bar guitar tuner for macOS. Built mainly for one user, an acoustic player
 
 - **Guitar mode** snaps to the nearest string of the current tuning and shows the offset from that string's target.
 - **Chromatic mode** shows the nearest note in equal temperament. Use it for badly detuned strings, capos, and anything outside the current tuning.
-- **Tunings are user-configured.** The only built-in one is Standard (E2 A2 D3 G3 B3 E4). A tuning has **4 to 8 strings**, covering ukuleles (including re-entrant tunings like G4 C4 E4 A4) up to 8-string guitars. The lowest allowed string note is F♯1, an 8-string's low string.
+- **Tunings are user-configured.** Four presets are built in: Standard (E2 A2 D3 G3 B3 E4), 7-string Standard (B1 + standard), 8-string Standard (F♯1 B1 + standard) and Ukulele Standard (re-entrant G4 C4 E4 A4). Presets are ordinary tunings: they can be edited or deleted.
+  - **Preset seeding:** each preset has a fixed ID. It's added once and recorded as offered, so presets added in a later version reach existing users, and a deleted preset stays deleted. A tuning has **4 to 8 strings**, covering ukuleles (including re-entrant tunings like G4 C4 E4 A4) up to 8-string guitars. The lowest allowed string note is F♯1, an 8-string's low string.
 - **A4 calibration** is a reference pitch setting that defaults to 440 Hz.
 - **Sharps or flats** is a global preference (default: sharps). Each tuning can override it or follow the global setting. Chromatic mode uses the selected tuning's effective spelling, so note names don't change when you switch modes while tuning the same guitar.
 - **Reference tones:** in guitar mode, clicking a string's circle in the tuner plays that string's note (current tuning and A4) as a 2 s pluck. Settings has an on/off toggle, on by default.

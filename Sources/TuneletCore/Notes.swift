@@ -131,6 +131,40 @@ public struct Tuning: Hashable, Sendable, Codable, Identifiable {
         strings: ["E2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! }
     )
 
+    public static let sevenStringStandard = Tuning(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+        name: "7-string Standard",
+        strings: ["B1", "E2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! }
+    )
+
+    public static let eightStringStandard = Tuning(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
+        name: "8-string Standard",
+        strings: ["F#1", "B1", "E2", "A2", "D3", "G3", "B3", "E4"].map { Note($0)! }
+    )
+
+    /// Re-entrant ("high G"): the 4th string is tuned above the 3rd.
+    public static let ukuleleStandard = Tuning(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
+        name: "Ukulele Standard",
+        strings: ["G4", "C4", "E4", "A4"].map { Note($0)! }
+    )
+
+    /// Built-in tunings, in the order they're offered. Their IDs are fixed, so they can be
+    /// recognised in saved preferences.
+    public static let presets = [standard, sevenStringStandard, eightStringStandard, ukuleleStandard]
+
+    /// Adds each preset not offered before, so presets added in later versions reach existing
+    /// users, while a preset the user deleted stays deleted. Returns the updated tunings and the
+    /// IDs of every preset offered so far.
+    public static func addingNewPresets(to tunings: [Tuning], offered: Set<UUID>) -> (tunings: [Tuning], offered: Set<UUID>) {
+        var result = tunings
+        for preset in presets where !offered.contains(preset.id) && !result.contains(where: { $0.id == preset.id }) {
+            result.append(preset)
+        }
+        return (result, offered.union(presets.map(\.id)))
+    }
+
     /// Guitar mode: the string whose target is closest to `frequency` and the offset from it in cents.
     public func nearestString(to frequency: Double, a4: Double) -> (index: Int, cents: Double) {
         let offsets = strings.map { Pitch.cents(frequency, from: $0.frequency(a4: a4)) }

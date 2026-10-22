@@ -166,3 +166,42 @@ import Testing
         }
     }
 }
+
+@Suite struct PresetTests {
+    @Test func presets() {
+        #expect(Tuning.presets.map(\.name) == ["Standard", "7-string Standard", "8-string Standard", "Ukulele Standard"])
+        #expect(Tuning.sevenStringStandard.strings.map(\.description) == ["B1", "E2", "A2", "D3", "G3", "B3", "E4"])
+        #expect(Tuning.eightStringStandard.strings.map(\.description) == ["F♯1", "B1", "E2", "A2", "D3", "G3", "B3", "E4"])
+        #expect(Tuning.ukuleleStandard.strings.map(\.description) == ["G4", "C4", "E4", "A4"])
+        #expect(Set(Tuning.presets.map(\.id)).count == Tuning.presets.count)
+        for preset in Tuning.presets {
+            #expect(Tuning.stringCountRange.contains(preset.strings.count))
+            #expect(preset.strings.allSatisfy { $0.midi >= Tuning.lowestNote.midi })
+        }
+    }
+
+    @Test func firstLaunchGetsAllPresets() {
+        let result = Tuning.addingNewPresets(to: [], offered: [])
+        #expect(result.tunings == Tuning.presets)
+        #expect(result.offered == Set(Tuning.presets.map(\.id)))
+    }
+
+    /// An existing user (Standard plus their own tunings, nothing recorded as offered) gets the new
+    /// presets added after their own, without duplicating Standard.
+    @Test func existingUserGetsNewPresetsOnce() {
+        let mine = Tuning(name: "Mine", strings: ["D2", "A2", "D3", "G3", "A3", "D4"].map { Note($0)! })
+        let first = Tuning.addingNewPresets(to: [Tuning.standard, mine], offered: [])
+        #expect(first.tunings.map(\.name) == ["Standard", "Mine", "7-string Standard", "8-string Standard", "Ukulele Standard"])
+
+        // Running again changes nothing.
+        let again = Tuning.addingNewPresets(to: first.tunings, offered: first.offered)
+        #expect(again.tunings == first.tunings)
+    }
+
+    @Test func deletedPresetStaysDeleted() {
+        let first = Tuning.addingNewPresets(to: [], offered: [])
+        let withoutUkulele = first.tunings.filter { $0.id != Tuning.ukuleleStandard.id }
+        let next = Tuning.addingNewPresets(to: withoutUkulele, offered: first.offered)
+        #expect(!next.tunings.contains { $0.id == Tuning.ukuleleStandard.id })
+    }
+}
