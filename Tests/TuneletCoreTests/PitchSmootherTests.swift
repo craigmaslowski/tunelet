@@ -37,7 +37,7 @@ import Testing
     @Test func harmonicWithoutAttackIsIgnored() {
         var s = PitchSmoother()
         var t = 0.0
-        steady(&s, 82.4, count: 10, t: &t)
+        steady(&s, 82.4, count: 40, t: &t)       // 0.8 s: past the settling window
         // The 2nd harmonic takes over as the string fades (level falling, no attack).
         for i in 0..<100 {
             let out = s.update(reading(164.8, level: 0.08 - Float(i) * 0.0005), at: t)
@@ -83,6 +83,32 @@ import Testing
         #expect(s.update(reading(82.4, level: 0.06), at: t) == PitchSmoother.Output.none)
         t += dt
         #expect(s.update(reading(82.4, level: 0.06), at: t) == .pitch(82.4))
+    }
+
+    /// Regression: a high e's attack was read an octave low (E3, shown as the D string). The true E4
+    /// that followed is a jump *up* an octave without a new attack, which must still be accepted
+    /// while the note is settling.
+    @Test func octaveLowAttackIsCorrectedWhileSettling() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, nil, count: 5, level: 0.0005, t: &t)                            // silence
+        // The attack misread as E3 for 160 ms, as in the real recording, so the true E4 arrives
+        // after the attack window has closed.
+        #expect(steady(&s, 164.8, count: 8, level: 0.02, t: &t) == .pitch(164.8))
+        var shown: PitchSmoother.Output = .none
+        for _ in 0..<10 { shown = s.update(reading(329.6, level: 0.018), at: t); t += dt }
+        #expect(shown == .pitch(329.6))
+    }
+
+    @Test func octaveUpAfterSettlingIsStillRejected() {
+        var s = PitchSmoother()
+        var t = 0.0
+        steady(&s, 82.4, count: 40, level: 0.05, t: &t)                           // settled E2
+        for _ in 0..<20 {
+            let out = s.update(reading(164.8, level: 0.04), at: t)
+            t += dt
+            if let f = frequency(out) { #expect(abs(f - 82.4) < 0.01, "showed \(f) Hz") }
+        }
     }
 
     @Test func unrelatedNoteWithoutAttackNeedsToPersist() {

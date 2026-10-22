@@ -7,7 +7,10 @@
 ///   - a new note starting from silence, or a jump just after an attack, is committed once
 ///     `startConfirmCount` readings agree, so a pluck whose first reading is an octave high
 ///     doesn't flash the wrong note;
-///   - otherwise a jump *up* to a harmonic (×2…×6) is rejected;
+///   - otherwise, once the note has settled (`settleWindow` after it was committed), a jump *up*
+///     to a harmonic (×2…×6) is rejected: that's a harmonic outlasting the fundamental. While the
+///     note is still settling, an octave correction in either direction is allowed, because the
+///     detector can misjudge the octave of an attack both ways;
 ///   - any other jump, including *down* to a sub-harmonic, is accepted once it persists for
 ///     `confirmCount` readings. A jump down usually means the current note was itself a harmonic
 ///     (a low string's attack can read an octave high), so it must not need an attack. This
@@ -42,6 +45,8 @@ public struct PitchSmoother {
     public var tailRatio: Float = 0.0316
     public var confirmCount = 5
     public var startConfirmCount = 3
+    /// How long after a note is committed it can still be corrected by an octave upward.
+    public var settleWindow = 0.6
     /// How close (in cents) a frequency ratio must be to a whole number to count as harmonic.
     /// 50¢ means "rounds to the same note an octave (twelfth, …) away"; harmonics read near the
     /// noise floor drift by tens of cents.
@@ -55,6 +60,7 @@ public struct PitchSmoother {
     private var candidateCount = 0
     private var lastOutput: Double?
     private var lastPitchTime: Double?
+    private var noteStart: Double?
     /// The note that last ended without a new attack since.
     private var endedNote: Double?
 
@@ -80,7 +86,8 @@ public struct PitchSmoother {
                 let inAttack = lastAttack.map { time - $0 <= attackWindow } ?? false
                 if inAttack {
                     needed = startConfirmCount
-                } else if frequency > current, isHarmonic(frequency, of: current) {
+                } else if frequency > current, isHarmonic(frequency, of: current),
+                          !(noteStart.map { time - $0 <= settleWindow } ?? false) {
                     // Most likely a harmonic outlasting the fundamental: not a new note.
                     return noPitch(at: time)
                 } else {
@@ -100,6 +107,7 @@ public struct PitchSmoother {
             }
             guard candidateCount >= needed else { return noPitch(at: time) }
             startNote()
+            noteStart = time
         } else {
             candidate = nil
             candidateCount = 0
@@ -122,6 +130,7 @@ public struct PitchSmoother {
         candidateCount = 0
         lastOutput = nil
         lastPitchTime = nil
+        noteStart = nil
         endedNote = nil
     }
 

@@ -18,8 +18,10 @@ public final class YINDetector {
 
     /// The dip at twice the period must be under this fraction of the chosen dip…
     static let octaveRatio: Float = 0.5
-    /// …and lower by at least this much, before the doubled period wins.
+    /// …lower by at least this much…
     static let octaveMargin: Float = 0.03
+    /// …and itself a near-perfect repeat, before the doubled period wins.
+    static let octaveMaxDip: Float = 0.01
 
     public let sampleRate: Double
     public let minFrequency: Double
@@ -96,15 +98,21 @@ public final class YINDetector {
         // dominates and the odd harmonics are weak. That's typical of a low string's attack through
         // a laptop mic, whose low-frequency roll-off weakens the fundamental. A genuinely higher
         // note repeats about as well at twice its period; a half-period mistake repeats far better
-        // there. Thresholds were set from real low-E recordings and 4,320 synthetic genuine notes
-        // (none wrongly halved).
+        // there, almost perfectly, because it is the real period.
+        //
+        // The near-perfect requirement (octaveMaxDip) matters: a plucked high e carries a quiet
+        // sympathetic E3 from the open low E, which makes twice its period repeat *fairly* well
+        // (dips 0.008–0.05 in a real recording) but not as cleanly as a real low string's period
+        // (0.002–0.008). Thresholds come from two real recordings (all six strings) and 4,320
+        // synthetic genuine notes (none wrongly halved); 0.008–0.0125 all gave the same result.
         let doubledLow = Int(Double(2 * bestLag) * 0.94)
         let doubledHigh = min(Int(Double(2 * bestLag) * 1.06), maxLag - 1)
         if doubledLow < doubledHigh,
            let doubled = (doubledLow...doubledHigh).min(by: { normalized[$0] < normalized[$1] }),
            normalized[doubled] <= normalized[doubled - 1], normalized[doubled] <= normalized[doubled + 1],
            normalized[doubled] < Self.octaveRatio * normalized[bestLag],
-           normalized[bestLag] - normalized[doubled] > Self.octaveMargin {
+           normalized[bestLag] - normalized[doubled] > Self.octaveMargin,
+           normalized[doubled] < Self.octaveMaxDip {
             bestLag = doubled
         }
 
