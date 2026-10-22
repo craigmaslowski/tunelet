@@ -3,27 +3,29 @@ import Foundation
 import Testing
 @testable import TuneletCore
 
-/// Real recordings of each string of an acoustic guitar, in tune according to the guitar's built-in
-/// tuner, captured through a MacBook's built-in mic (see audio-samples/README.md).
+/// Real recordings of each string of two acoustic guitars, in tune according to each guitar's
+/// built-in tuner, captured through a MacBook's built-in mic (see audio-samples/README.md).
 ///
 /// These guard against the regressions synthetic signals missed: the low E's attack reading an
 /// octave high (shown as the D string), and the high e's attack reading an octave low.
 @Suite struct RecordedStringTests {
     struct Sample: Sendable, CustomTestStringConvertible {
-        let file: String
+        let guitar: String
+        let name: String
         /// 0 = 6th string … 5 = 1st string.
         let string: Int
+        var file: String { "\(guitar)-\(name)" }
         var testDescription: String { file }
     }
 
-    static let samples = [
-        Sample(file: "E-6th-string", string: 0),
-        Sample(file: "A-5th-string", string: 1),
-        Sample(file: "D-4th-string", string: 2),
-        Sample(file: "G-3rd-string", string: 3),
-        Sample(file: "B-2nd-string", string: 4),
-        Sample(file: "E-1st-string", string: 5),
-    ]
+    /// File-name prefixes, one per guitar.
+    static let guitars = ["martin-gpc-x1e", "hb-clc650-sm-ce"]
+
+    static let strings = ["E-6th-string", "A-5th-string", "D-4th-string", "G-3rd-string", "B-2nd-string", "E-1st-string"]
+
+    static let samples = guitars.flatMap { guitar in
+        strings.enumerated().map { Sample(guitar: guitar, name: $0.element, string: $0.offset) }
+    }
 
     static let directory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // TuneletCoreTests
